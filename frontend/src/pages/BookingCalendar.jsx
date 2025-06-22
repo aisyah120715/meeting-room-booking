@@ -27,7 +27,6 @@ export default function BookingCalendar() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-
   const today = new Date().toISOString().split("T")[0];
 
   const hours = [
@@ -57,7 +56,6 @@ export default function BookingCalendar() {
 
           const normalizedSlots = res.data.map((time) => convertToAmPm(time));
           setBookedSlots(normalizedSlots);
-
         })
         .catch(() => setBookedSlots([]));
     }
@@ -79,24 +77,8 @@ export default function BookingCalendar() {
       return;
     }
 
-    // Get all time slots that fall within the selected range
-    const selectedStartIndex = hours.indexOf(startTime);
-    const selectedEndIndex = hours.indexOf(endTime);
-    
-    if (selectedStartIndex === -1 || selectedEndIndex === -1) {
-      setStatus("error");
-      setConfirmationMsg("Invalid time selection.");
-      return;
-    }
-
     // Check for any booked slots that overlap with the selected range
-    const isOverlapping = bookedSlots.some(slot => {
-      const slotIndex = hours.indexOf(slot);
-      return (
-        (slotIndex >= selectedStartIndex && slotIndex < selectedEndIndex) ||
-        (slotIndex === selectedStartIndex && bookedSlots.includes(slot))
-      );
-    });
+    const isOverlapping = isRangeBooked(startTime, endTime);
 
     if (isOverlapping) {
       setStatus("error");
@@ -119,7 +101,17 @@ export default function BookingCalendar() {
         setConfirmationMsg("Booking confirmed! A confirmation email has been sent.");
         // Refresh booked slots
         axios.get(`${API_URL}/api/booking/slots?date=${selectedDate}&room=${room}`)
-          .then((res) => setBookedSlots(res.data));
+          .then((res) => {
+            const normalizedSlots = res.data.map((time) => {
+              const [hourStr] = time.split(":");
+              let hour = parseInt(hourStr);
+              const ampm = hour >= 12 ? "pm" : "am";
+              if (hour === 0) hour = 12;
+              if (hour > 12) hour -= 12;
+              return `${hour}:00${ampm}`;
+            });
+            setBookedSlots(normalizedSlots);
+          });
       })
       .catch((err) => {
         console.error("❌ Booking error:", err);
@@ -128,33 +120,49 @@ export default function BookingCalendar() {
       });
   };
 
-  // Helper function to check if a time slot is available for start time
+  // Improved time slot availability check
   const isStartTimeAvailable = (time) => {
     const timeIndex = hours.indexOf(time);
-    return !bookedSlots.includes(time) || 
-           (timeIndex > 0 && bookedSlots.includes(hours[timeIndex - 1]));
-  };
-
-  // Helper function to get available end times
-  const getAvailableEndTimes = () => {
-    if (!startTime) return hours;
+    if (timeIndex === -1) return false;
     
-    const startIndex = hours.indexOf(startTime);
-    return hours.filter((time, index) => {
-      const timeIndex = hours.indexOf(time);
-      return (
-        timeIndex > startIndex && 
-        !bookedSlots.includes(time) &&
-        !isRangeBooked(startTime, time)
-      );
-    });
+    // Check if this exact time is booked
+    if (bookedSlots.includes(time)) return false;
+    
+    // Check if the previous slot is booked (which would make this slot unavailable as a start time)
+    if (timeIndex > 0 && bookedSlots.includes(hours[timeIndex - 1])) return false;
+    
+    return true;
   };
 
   // Helper function to check if a range is booked
   const isRangeBooked = (start, end) => {
     const startIndex = hours.indexOf(start);
     const endIndex = hours.indexOf(end);
-    return hours.slice(startIndex, endIndex).some(time => bookedSlots.includes(time));
+    
+    if (startIndex === -1 || endIndex === -1) return true;
+    
+    // Check if any time in the range is booked
+    for (let i = startIndex; i < endIndex; i++) {
+      if (bookedSlots.includes(hours[i])) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Helper function to get available end times
+  const getAvailableEndTimes = () => {
+    if (!startTime) return [];
+    
+    const startIndex = hours.indexOf(startTime);
+    return hours.filter((time, index) => {
+      const timeIndex = hours.indexOf(time);
+      return (
+        timeIndex > startIndex && 
+        !isRangeBooked(startTime, time)
+      );
+    });
   };
 
   const formatTime = (timeStr) => {
@@ -201,13 +209,13 @@ export default function BookingCalendar() {
             <p className="text-sm font-medium">{user?.name}</p>
             <p className="text-xs text-green-200">{user?.email}</p>
           </div>
-       <button 
-    className="flex items-center w-full p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all mt-2"
-    onClick={() => navigate("/login")} // Add this onClick handler
-  >
-    <FiLogOut className="mr-3 text-lg" />
-    <span>Logout</span>
-  </button>
+          <button 
+            className="flex items-center w-full p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all mt-2"
+            onClick={() => navigate("/login")}
+          >
+            <FiLogOut className="mr-3 text-lg" />
+            <span>Logout</span>
+          </button>
         </div>
       </div>
 
@@ -288,29 +296,34 @@ export default function BookingCalendar() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-               <select
-  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
-  value={startTime}
-  onChange={(e) => {
-    setStartTime(e.target.value);
-    setEndTime("");
-  }}
->
-  <option value="">-- Select --</option>
-  {hours.map((h) => {
-    const isBooked = bookedSlots.includes(h);
-    return (
-      <option 
-        key={h} 
-        value={h} 
-        disabled={isBooked}
-        className={isBooked ? "text-gray-400 bg-gray-100" : ""}
-      >
-        {formatTime(h)} {isBooked && "(Booked)"}
-      </option>
-    );
-  })}
-</select>
+                <select
+                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
+                  value={startTime}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    setEndTime("");
+                  }}
+                >
+                  <option value="">-- Select --</option>
+                  {hours.map((h) => {
+                    const isAvailable = isStartTimeAvailable(h);
+                    const isBooked = bookedSlots.includes(h);
+                    const prevBooked = hours.indexOf(h) > 0 && bookedSlots.includes(hours[hours.indexOf(h) - 1]);
+                    
+                    return (
+                      <option 
+                        key={h} 
+                        value={h} 
+                        disabled={!isAvailable}
+                        className={!isAvailable ? "text-gray-400" : ""}
+                      >
+                        {formatTime(h)} 
+                        {isBooked && " (Booked)"}
+                        {prevBooked && " (Unavailable)"}
+                      </option>
+                    );
+                  })}
+                </select>
               </div>
 
               <div>
@@ -322,21 +335,11 @@ export default function BookingCalendar() {
                   disabled={!startTime}
                 >
                   <option value="">-- Select --</option>
-                  {hours.map((h) => {
-                    const isAfterStart = startTime && timeToMinutes(h) > timeToMinutes(startTime);
-                    const isAvailable = !bookedSlots.includes(h) && !isRangeBooked(startTime, h);
-                    
-                    return (
-                      <option 
-                        key={h} 
-                        value={h} 
-                        disabled={!isAfterStart || !isAvailable}
-                        className={!isAfterStart || !isAvailable ? "text-gray-400" : ""}
-                      >
-                        {formatTime(h)} {!isAvailable ? "(Unavailable)" : ""}
-                      </option>
-                    );
-                  })}
+                  {getAvailableEndTimes().map((h) => (
+                    <option key={h} value={h}>
+                      {formatTime(h)}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
