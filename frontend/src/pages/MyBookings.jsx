@@ -220,6 +220,18 @@ export default function MyBookings() {
     return timeStr;
   };
 
+  // Separate bookings into upcoming and past
+  const now = new Date();
+  const upcomingBookings = bookings.filter(booking => {
+    const bookingDate = new Date(`${booking.date}T${booking.time}`);
+    return bookingDate >= now && booking.status !== 'cancelled';
+  });
+
+  const pastBookings = bookings.filter(booking => {
+    const bookingDate = new Date(`${booking.date}T${booking.time}`);
+    return bookingDate < now || booking.status === 'cancelled';
+  });
+
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
       {/* Sidebar */}
@@ -311,176 +323,239 @@ export default function MyBookings() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4 max-w-4xl">
-            {bookings.map((b) => (
-              <motion.div 
-                key={b.id} 
-                className="bg-white rounded-xl shadow-sm overflow-hidden"
-                whileHover={{ y: -2 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
-                <div className="p-6">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center">
-                      <div className="p-3 bg-blue-50 rounded-lg mr-4 text-blue-600">
-                        <FiClock className="text-lg" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800">{b.room}</h3>
-                        <p className="text-gray-600 mt-1">
-                          {formatDate(b.date)} • {formatTime(b.time)} - {formatTime(b.end_time)}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      b.status === 'approved' ? 'bg-green-100 text-green-800' : 
-                      b.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
-                    </span>
-                  </div>
+          <div className="space-y-8 max-w-4xl">
+            {/* Upcoming Bookings Section */}
+            {upcomingBookings.length > 0 && (
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                  <FiClock className="mr-2 text-green-600" />
+                  Upcoming Bookings
+                </h2>
+                <div className="space-y-4">
+                  {upcomingBookings.map((b) => (
+                    <motion.div 
+                      key={b.id} 
+                      className="bg-white rounded-xl shadow-sm overflow-hidden"
+                      whileHover={{ y: -2 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <div className="p-6">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center">
+                            <div className="p-3 bg-blue-50 rounded-lg mr-4 text-blue-600">
+                              <FiClock className="text-lg" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-gray-800">{b.room}</h3>
+                              <p className="text-gray-600 mt-1">
+                                {formatDate(b.date)} • {formatTime(b.time)} - {formatTime(b.end_time)}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            b.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                            b.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                          </span>
+                        </div>
 
-                  {editingId === b.id ? (
-                    <div className="mt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                          <select
-                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-                            value={newStartTime}
-                            onChange={(e) => {
-                              setNewStartTime(e.target.value);
-                              setNewEndTime("");
-                            }}
-                          >
-                            <option value="">Select start time</option>
-                            {hours.map((h) => {
-                              const isBooked = bookings.some(booking => {
-                                if (booking.id === b.id) return false;
-                                
-                                const bookingStart = formatTimeForDisplay(booking.time);
-                                const bookingEnd = formatTimeForDisplay(booking.end_time);
-                                const timeMin = timeToMinutes(h);
-                                const bookingStartMin = timeToMinutes(bookingStart);
-                                const bookingEndMin = timeToMinutes(bookingEnd);
-                                
-                                return timeMin >= bookingStartMin && timeMin < bookingEndMin;
-                              });
-                              
-                              const isCurrentTime = h === formatTimeForDisplay(b.time);
-                              
-                              return (
-                                <option 
-                                  key={h} 
-                                  value={h}
-                                  disabled={isBooked && !isCurrentTime}
-                                  className={isBooked && !isCurrentTime ? 'text-gray-400' : ''}
+                        {editingId === b.id ? (
+                          <div className="mt-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                                <select
+                                  className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
+                                  value={newStartTime}
+                                  onChange={(e) => {
+                                    setNewStartTime(e.target.value);
+                                    setNewEndTime("");
+                                  }}
                                 >
-                                  {formatTime(h)} 
-                                  {isBooked && !isCurrentTime && " (Booked)"}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                          <select
-                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-                            value={newEndTime}
-                            onChange={(e) => setNewEndTime(e.target.value)}
-                            disabled={!newStartTime}
-                          >
-                            <option value="">Select end time</option>
-                            {hours.map((h) => {
-                              const isAfterStart = newStartTime && timeToMinutes(h) > timeToMinutes(newStartTime);
-                              const isBooked = bookings.some(booking => {
-                                if (booking.id === b.id) return false;
-                                
-                                const bookingStart = formatTimeForDisplay(booking.time);
-                                const bookingEnd = formatTimeForDisplay(booking.end_time);
-                                const timeMin = timeToMinutes(h);
-                                const bookingStartMin = timeToMinutes(bookingStart);
-                                const bookingEndMin = timeToMinutes(bookingEnd);
-                                
-                                return timeMin >= bookingStartMin && timeMin < bookingEndMin;
-                              });
-                              const isRangeAvailable = !isRangeBooked(newStartTime, h, b.id);
-                              const isCurrentTime = h === formatTimeForDisplay(b.end_time);
-                              
-                              return (
-                                <option 
-                                  key={h} 
-                                  value={h}
-                                  disabled={(!isAfterStart || (isBooked && !isCurrentTime) || !isRangeAvailable)}
-                                  className={(!isAfterStart || (isBooked && !isCurrentTime) || !isRangeAvailable) ? 'text-gray-400' : ''}
+                                  <option value="">Select start time</option>
+                                  {hours.map((h) => {
+                                    const isBooked = bookings.some(booking => {
+                                      if (booking.id === b.id) return false;
+                                      
+                                      const bookingStart = formatTimeForDisplay(booking.time);
+                                      const bookingEnd = formatTimeForDisplay(booking.end_time);
+                                      const timeMin = timeToMinutes(h);
+                                      const bookingStartMin = timeToMinutes(bookingStart);
+                                      const bookingEndMin = timeToMinutes(bookingEnd);
+                                      
+                                      return timeMin >= bookingStartMin && timeMin < bookingEndMin;
+                                    });
+                                    
+                                    const isCurrentTime = h === formatTimeForDisplay(b.time);
+                                    
+                                    return (
+                                      <option 
+                                        key={h} 
+                                        value={h}
+                                        disabled={isBooked && !isCurrentTime}
+                                        className={isBooked && !isCurrentTime ? 'text-gray-400' : ''}
+                                      >
+                                        {formatTime(h)} 
+                                        {isBooked && !isCurrentTime && " (Booked)"}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                                <select
+                                  className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
+                                  value={newEndTime}
+                                  onChange={(e) => setNewEndTime(e.target.value)}
+                                  disabled={!newStartTime}
                                 >
-                                  {formatTime(h)} 
-                                  {(!isAfterStart && " (Before start)") ||
-                                   (isBooked && !isCurrentTime && " (Booked)") ||
-                                   (!isRangeAvailable && " (Unavailable)")}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
+                                  <option value="">Select end time</option>
+                                  {hours.map((h) => {
+                                    const isAfterStart = newStartTime && timeToMinutes(h) > timeToMinutes(newStartTime);
+                                    const isBooked = bookings.some(booking => {
+                                      if (booking.id === b.id) return false;
+                                      
+                                      const bookingStart = formatTimeForDisplay(booking.time);
+                                      const bookingEnd = formatTimeForDisplay(booking.end_time);
+                                      const timeMin = timeToMinutes(h);
+                                      const bookingStartMin = timeToMinutes(bookingStart);
+                                      const bookingEndMin = timeToMinutes(bookingEnd);
+                                      
+                                      return timeMin >= bookingStartMin && timeMin < bookingEndMin;
+                                    });
+                                    const isRangeAvailable = !isRangeBooked(newStartTime, h, b.id);
+                                    const isCurrentTime = h === formatTimeForDisplay(b.end_time);
+                                    
+                                    return (
+                                      <option 
+                                        key={h} 
+                                        value={h}
+                                        disabled={(!isAfterStart || (isBooked && !isCurrentTime) || !isRangeAvailable)}
+                                        className={(!isAfterStart || (isBooked && !isCurrentTime) || !isRangeAvailable) ? 'text-gray-400' : ''}
+                                      >
+                                        {formatTime(h)} 
+                                        {(!isAfterStart && " (Before start)") ||
+                                         (isBooked && !isCurrentTime && " (Booked)") ||
+                                         (!isRangeAvailable && " (Unavailable)")}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+                            </div>
+                            
+                            {isLoadingSlots && (
+                              <div className="mt-2 text-sm text-gray-500">Loading available times...</div>
+                            )}
+                            {slotError && (
+                              <div className="mt-2 text-sm text-red-500">{slotError}</div>
+                            )}
+                            
+                            <div className="mt-4 flex justify-end space-x-3">
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={saveEdit}
+                                className="px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium text-white hover:bg-blue-700 transition-colors flex items-center"
+                              >
+                                <FiCheckCircle className="mr-2" />
+                                Save Changes
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-4 flex justify-end space-x-3">
+                            <button
+                              onClick={() => handleEdit(b)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
+                                b.status === 'approved' 
+                                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              } transition-colors`}
+                              disabled={b.status === 'approved'}
+                            >
+                              <FiEdit2 className="mr-2" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleCancel(b.id)}
+                              className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center ${
+                                b.status === 'cancelled' 
+                                  ? 'bg-gray-300 cursor-not-allowed'
+                                  : 'bg-red-600 hover:bg-red-700'
+                              } transition-colors`}
+                              disabled={b.status === 'cancelled'}
+                            >
+                              <FiX className="mr-2" />
+                              Cancel Booking
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      
-                      {isLoadingSlots && (
-                        <div className="mt-2 text-sm text-gray-500">Loading available times...</div>
-                      )}
-                      {slotError && (
-                        <div className="mt-2 text-sm text-red-500">{slotError}</div>
-                      )}
-                      
-                      <div className="mt-4 flex justify-end space-x-3">
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={saveEdit}
-                          className="px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium text-white hover:bg-blue-700 transition-colors flex items-center"
-                        >
-                          <FiCheckCircle className="mr-2" />
-                          Save Changes
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-4 flex justify-end space-x-3">
-                      <button
-                        onClick={() => handleEdit(b)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
-                          b.status === 'approved' 
-                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        } transition-colors`}
-                        disabled={b.status === 'approved'}
-                      >
-                        <FiEdit2 className="mr-2" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleCancel(b.id)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center ${
-                          b.status === 'cancelled' 
-                            ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-red-600 hover:bg-red-700'
-                        } transition-colors`}
-                        disabled={b.status === 'cancelled'}
-                      >
-                        <FiX className="mr-2" />
-                        Cancel Booking
-                      </button>
-                    </div>
-                  )}
+                    </motion.div>
+                  ))}
                 </div>
-              </motion.div>
-            ))}
+              </div>
+            )}
+
+            {/* Past Bookings Section */}
+            {pastBookings.length > 0 && (
+              <div>
+                <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                  <FiCalendar className="mr-2 text-gray-500" />
+                  Past Bookings
+                </h2>
+                <div className="space-y-4">
+                  {pastBookings.map((b) => (
+                    <motion.div 
+                      key={b.id} 
+                      className="bg-white rounded-xl shadow-sm overflow-hidden"
+                      whileHover={{ y: -2 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <div className="p-6">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center">
+                            <div className={`p-3 rounded-lg mr-4 ${
+                              b.status === 'approved' ? 'bg-green-50 text-green-600' :
+                              b.status === 'cancelled' ? 'bg-red-50 text-red-600' :
+                              'bg-gray-50 text-gray-600'
+                            }`}>
+                              {b.status === 'approved' ? <FiCheckCircle className="text-lg" /> :
+                               b.status === 'cancelled' ? <FiXCircle className="text-lg" /> :
+                               <FiClock className="text-lg" />}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-gray-800">{b.room}</h3>
+                              <p className="text-gray-600 mt-1">
+                                {formatDate(b.date)} • {formatTime(b.time)} - {formatTime(b.end_time)}
+                              </p>
+                              {b.status === 'cancelled' && (
+                                <p className="text-sm text-red-500 mt-1">This booking was cancelled</p>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            b.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                            b.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

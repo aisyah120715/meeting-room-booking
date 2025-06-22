@@ -114,14 +114,12 @@ export default function DashboardUser() {
         </div>
       </div>
 
-      {/* Main Content (rest of your existing code remains the same) */}
       <div className="flex-1 p-6">
         <header className="bg-white shadow-sm p-6 mb-6 rounded-lg">
           <h1 className="text-2xl font-bold text-gray-800">Welcome back!</h1>
           <p className="text-gray-600">Manage your meeting room bookings</p>
         </header>
 
-        {/* Action Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 max-w-4xl">
           <motion.div
             whileHover={{ y: -3 }}

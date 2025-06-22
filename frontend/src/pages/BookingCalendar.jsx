@@ -46,7 +46,18 @@ export default function BookingCalendar() {
       axios
         .get(`${API_URL}/api/booking/slots?date=${selectedDate}&room=${room}`)
         .then((res) => {
-          setBookedSlots(res.data);
+          const convertToAmPm = (time24) => {
+            const [hourStr] = time24.split(":");
+            let hour = parseInt(hourStr);
+            const ampm = hour >= 12 ? "pm" : "am";
+            if (hour === 0) hour = 12;
+            if (hour > 12) hour -= 12;
+            return `${hour}:00${ampm}`;
+          };
+
+          const normalizedSlots = res.data.map((time) => convertToAmPm(time));
+          setBookedSlots(normalizedSlots);
+
         })
         .catch(() => setBookedSlots([]));
     }
