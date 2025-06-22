@@ -11,14 +11,27 @@ import {
   FiChevronRight,
   FiClock,
   FiCheckCircle,
-  FiArrowRight,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-// ... (BookingCardSkeleton component remains the same) ...
+// IMPORTANT: Move BookingCardSkeleton here, ABOVE the DashboardUser component
+const BookingCardSkeleton = () => (
+  <div className="p-4 flex items-center animate-pulse bg-white border border-gray-100 rounded-lg shadow-sm mb-4">
+    <div className="p-3 bg-gray-200 rounded-lg mr-4 h-9 w-9"></div>{" "}
+    {/* Icon placeholder */}
+    <div className="flex-1">
+      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>{" "}
+      {/* Title placeholder */}
+      <div className="h-3 bg-gray-200 rounded w-1/2"></div>{" "}
+      {/* Subtitle placeholder */}
+    </div>
+    <div className="h-4 bg-gray-200 rounded w-1/6 ml-4"></div>{" "}
+    {/* Status placeholder */}
+  </div>
+);
 
 export default function DashboardUser() {
   const [approvedBookings, setApprovedBookings] = useState([]);
@@ -26,19 +39,92 @@ export default function DashboardUser() {
   const [error, setError] = useState("");
   const [nextMeeting, setNextMeeting] = useState(null);
 
-  const { user, login: setUser, logout, loadingAuth } = useAuth(); // Destructure loadingAuth and rename setUser to login
+  const { user, login: setUser, logout, loadingAuth } = useAuth();
   const navigate = useNavigate();
 
-  // ... (formatTime, formatDate, createGoogleCalendarLink, getCountdown remain the same) ...
+  // IMPORTANT: Move these helper functions here, INSIDE or RIGHT ABOVE DashboardUser
+  // Helper to format 24hr time from backend to am/pm for display
+  const formatTime = (time24) => {
+    if (!time24) return "";
+    const [hourStr, minuteStr] = time24.split(":");
+    let hour = parseInt(hourStr, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    hour = hour % 12;
+    hour = hour === 0 ? 12 : hour; // Convert 0 (midnight) to 12 AM
+    return `${hour}:${minuteStr} ${ampm}`;
+  };
+
+  const formatDate = (dateStr) => {
+    const options = { weekday: "short", month: "short", day: "numeric" };
+    return new Date(dateStr).toLocaleDateString("en-US", options);
+  };
+
+  // Helper function to create Google Calendar event link
+  const createGoogleCalendarLink = (booking) => {
+    // Ensure `booking.date`, `booking.time`, and `booking.end_time` are available
+    if (!booking || !booking.date || !booking.time || !booking.end_time) {
+      console.error("Missing booking details for calendar link:", booking);
+      return "#";
+    }
+
+    // Combine date and time for Date objects
+    // Using `T` to indicate time in ISO format for reliable parsing
+    const startDateTimeStr = `${booking.date}T${booking.time}`;
+    const endDateTimeStr = `${booking.date}T${booking.end_time}`;
+
+    const startTime = new Date(startDateTimeStr);
+    const endTime = new Date(endDateTimeStr);
+
+    // Google Calendar expects times in 'YYYYMMDDTHHMMSS' format (Zulu time if no timezone specified)
+    // We'll use UTC/Zulu time for consistency, assuming the backend times are relative to UTC
+    const formatGCalTime = (date) => {
+      // Return format example: 20250623T080000Z (Z denotes Zulu/UTC time)
+      return date.toISOString().replace(/-|:|\.\d{3}/g, "").slice(0, 15) + "Z";
+    };
+
+    const details = encodeURIComponent(
+      `Meeting in ${booking.room} from ${formatTime(
+        booking.time
+      )} to ${formatTime(booking.end_time)}.`
+    );
+    const location = encodeURIComponent(booking.room);
+    const title = encodeURIComponent(`Meeting in ${booking.room}`);
+
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${formatGCalTime(
+      startTime
+    )}/${formatGCalTime(
+      endTime
+    )}&details=${details}&location=${location}&sf=true&output=xml`;
+  };
+
+  // Helper for countdown (e.g., "Starts in 30 minutes")
+  const getCountdown = (booking) => {
+    if (!booking) return "";
+    const bookingDateTime = new Date(`${booking.date}T${booking.time}`);
+    const now = new Date();
+    const diffMs = bookingDateTime.getTime() - now.getTime();
+
+    if (diffMs < 0) return "Meeting has started!"; // Already passed or starting
+
+    const diffMinutes = Math.round(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const remainingMinutes = diffMinutes % 60;
+
+    if (diffHours > 0) {
+      return `Starts in ${diffHours}h ${remainingMinutes}m`;
+    } else if (diffMinutes > 0) {
+      return `Starts in ${diffMinutes}m`;
+    } else {
+      return "Starting soon!";
+    }
+  };
+
 
   useEffect(() => {
     const fetchApprovedBookings = async () => {
-      // If auth is still loading, wait.
       if (loadingAuth) {
         return;
       }
-
-      // If auth is done loading and no user or user email, set error and stop.
       if (!user?.email) {
         setLoading(false);
         setError("User not logged in or email not available.");
@@ -46,7 +132,7 @@ export default function DashboardUser() {
       }
 
       try {
-        setLoading(true); // Start loading when fetch begins
+        setLoading(true);
         const response = await axios.get(
           `${API_URL}/api/booking/approved?userEmail=${user.email}`
         );
@@ -54,19 +140,17 @@ export default function DashboardUser() {
         setError("");
       } catch (err) {
         console.error("Fetch error:", err);
-        // More specific error message if the API returns one
         setError(err.response?.data?.message || "Failed to fetch approved bookings");
       } finally {
-        setLoading(false); // Stop loading after fetch
+        setLoading(false);
       }
     };
 
     fetchApprovedBookings();
-  }, [user, loadingAuth]); // Add loadingAuth to dependency array
+  }, [user, loadingAuth]);
 
-  // Effect to determine the next upcoming meeting (remains largely the same)
   useEffect(() => {
-    if (!loadingAuth && user && approvedBookings.length > 0) { // Ensure auth is done loading
+    if (!loadingAuth && user && approvedBookings.length > 0) {
       const now = new Date();
       const userUpcomingBookings = approvedBookings
         .filter((booking) => {
@@ -79,13 +163,13 @@ export default function DashboardUser() {
           return dateA - dateB;
         });
       setNextMeeting(userUpcomingBookings[0] || null);
-    } else if (!loadingAuth && !user) { // If auth is done and no user, no next meeting
+    } else if (!loadingAuth && !user) {
       setNextMeeting(null);
     }
-  }, [user, approvedBookings, loadingAuth]); // Add loadingAuth to dependency array
+  }, [user, approvedBookings, loadingAuth]);
 
   const handleLogout = () => {
-    logout(); // Use the logout function from context
+    logout();
     navigate("/login");
   };
 
@@ -98,7 +182,6 @@ export default function DashboardUser() {
     );
   }
 
-  // Rest of your JSX remains the same
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
       {/* Sidebar */}
