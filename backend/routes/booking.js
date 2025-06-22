@@ -1,21 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../db"); // Assuming this is your database connection
-const sendEmail = require("../utils/mailer"); // Assuming this is your email utility
+const db = require("../db");
+const sendEmail = require("../utils/mailer");
 
 // Time slots from 8:00am to 4:00pm
 const hours = [
   "8:00am", "9:00am", "10:00am", "11:00am",
   "12:00pm", "1:00pm", "2:00pm", "3:00pm", "4:00pm"
 ];
-
-// Helper to get all slots between start and end (inclusive)
-const getSlotRange = (start, end) => {
-  const startIndex = hours.indexOf(start);
-  const endIndex = hours.indexOf(end);
-  if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) return [];
-  return hours.slice(startIndex, endIndex + 1);
-};
 
 // GET: Unavailable time slots for a date and room
 router.get("/slots", (req, res) => {
@@ -26,14 +18,67 @@ router.get("/slots", (req, res) => {
   db.query(sql, [date, room], (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
 
-    const booked = new Set();
-    results.forEach(({ time, end_time }) => {
-      getSlotRange(time, end_time).forEach((slot) => booked.add(slot));
+    // Convert database times to frontend format
+    const formattedBookings = results.map(booking => {
+      return {
+        time: booking.time, // Keep in 24-hour format for backend processing
+        end_time: booking.end_time,
+        start: formatTimeForDisplay(booking.time),
+        end: formatTimeForDisplay(booking.end_time)
+      };
     });
 
-    res.json([...booked]);
+    res.json(formattedBookings);
   });
 });
+
+// Helper function to convert database time (HH:MM:SS) to frontend format (H:MMam/pm)
+function formatTimeForDisplay(time24) {
+  if (!time24) return "";
+  const [hourStr, minuteStr] = time24.split(':');
+  let hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'pm' : 'am';
+  hour = hour % 12;
+  hour = hour === 0 ? 12 : hour;
+  return `${hour}:${minuteStr}${ampm}`;
+}
+
+// Helper to get all slots between start and end (inclusive)
+const getSlotRange = (start, end) => {
+  const startTime = new Date(`2000-01-01T${convertTo24Hour(start)}`);
+  const endTime = new Date(`2000-01-01T${convertTo24Hour(end)}`);
+  
+  if (startTime > endTime) return [];
+  
+  const slots = [];
+  let current = new Date(startTime);
+  
+  while (current <= endTime) {
+    const hours = current.getHours();
+    const minutes = current.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    const displayHours = hours % 12 || 12;
+    slots.push(`${displayHours}:${minutes.toString().padStart(2, '0')}${ampm}`);
+    current.setHours(current.getHours() + 1);
+  }
+  
+  return slots;
+};
+
+// Helper to convert frontend time (H:MMam/pm) to 24-hour format (HH:MM:SS)
+function convertTo24Hour(timeStr) {
+  if (!timeStr) return "";
+  const [time, period] = timeStr.split(/(am|pm)/i);
+  let [hours, minutes] = time.split(':').map(Number);
+  
+  if (period.toLowerCase() === 'pm' && hours !== 12) {
+    hours += 12;
+  } else if (period.toLowerCase() === 'am' && hours === 12) {
+    hours = 0;
+  }
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+}
 
 // POST: Create a new booking
 router.post("/create", (req, res) => {
@@ -42,10 +87,10 @@ router.post("/create", (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
 
   // Basic validation to prevent booking in the past
-  const bookingDateTime = new Date(`${date}T${startTime}`);
+  const bookingDateTime = new Date(`${date}T${convertTo24Hour(startTime)}`);
   const now = new Date();
   if (bookingDateTime < now) {
-      return res.status(400).json({ error: "Cannot book a slot in the past." });
+    return res.status(400).json({ error: "Cannot book a slot in the past." });
   }
 
   // Check for conflicts before inserting
@@ -64,7 +109,11 @@ router.post("/create", (req, res) => {
 
     let conflict = false;
     for (const existingBooking of existingBookings) {
-      const existingSlots = getSlotRange(existingBooking.time, existingBooking.end_time);
+      const existingSlots = getSlotRange(
+        formatTimeForDisplay(existingBooking.time),
+        formatTimeForDisplay(existingBooking.end_time)
+      );
+      
       if (newBookingSlots.some(slot => existingSlots.includes(slot))) {
         conflict = true;
         break;
@@ -80,7 +129,11 @@ router.post("/create", (req, res) => {
       INSERT INTO bookings (date, time, end_time, user_email, user_name, room, status)
       VALUES (?, ?, ?, ?, ?, ?, 'pending')
     `;
-    db.query(sqlInsert, [date, startTime, endTime, userEmail, userName, room], async (err) => {
+    
+    const time24 = convertTo24Hour(startTime);
+    const endTime24 = convertTo24Hour(endTime);
+    
+    db.query(sqlInsert, [date, time24, endTime24, userEmail, userName, room], async (err) => {
       if (err) {
         console.error("Error inserting booking:", err);
         return res.status(500).json({ error: err.message });
