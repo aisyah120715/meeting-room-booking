@@ -11,13 +11,23 @@ router.get("/bookings", (req, res) => {
 });
 
 // Update booking status
-router.post("/update-status", (req, res) => {
+router.post('/update-status', (req, res) => {
   const { id, status } = req.body;
-  db.query("UPDATE bookings SET status = ? WHERE id = ?", [status, id], (err) => {
-    if (err) return res.status(500).send("Update failed");
-    res.sendStatus(200);
+
+  if (!id || !status) {
+    return res.status(400).json({ error: "Missing booking ID or status" });
+  }
+
+  const query = `UPDATE bookings SET status = ? WHERE id = ?`;
+  db.query(query, [status, id], (err, result) => {
+    if (err) {
+      console.error("MySQL update error:", err);
+      return res.status(500).json({ error: "Failed to update booking status" });
+    }
+    res.json({ message: "Status updated successfully" });
   });
 });
+
 
 // Summary: count bookings per day
 router.get("/summary", (req, res) => {

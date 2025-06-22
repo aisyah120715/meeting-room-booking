@@ -141,16 +141,15 @@ router.post("/edit", async (req, res) => {
   });
 });
 
-router.get('/approved', (req, res) => {
-  const sql = `SELECT id, date, time, user_email, status, created_at, room, end_time 
-               FROM bookings WHERE status = 'approved' ORDER BY date, time`;
-  
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ error: 'Failed to fetch approved bookings' });
-    }
-    res.json(results);
+router.post("/approve", (req, res) => {
+  const { id } = req.body;
+
+  if (!id) return res.status(400).json({ error: "Missing booking ID" });
+
+  const sql = `UPDATE bookings SET status = 'approved' WHERE id = ?`;
+  db.query(sql, [id], (err, result) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: "Booking approved successfully" });
   });
 });
 
