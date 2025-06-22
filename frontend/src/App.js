@@ -1,6 +1,6 @@
 // src/App.jsx
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext"; // ✅
+import { Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
 import BookingCalendar from "./pages/BookingCalendar";
 import MyBookings from "./pages/MyBookings";
 import Login from "./pages/Login";
@@ -11,19 +11,17 @@ import WelcomePage from "./pages/WelcomePage";
 
 function App() {
   return (
-    <BrowserRouter> {/* BrowserRouter should be outermost */}
-      <AuthProvider> {/* AuthProvider should be inside BrowserRouter */}
-        <Routes>
-          <Route path="/" element={<WelcomePage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/calendar" element={<BookingCalendar />} />
-          <Route path="/my-bookings" element={<MyBookings />} />
-          <Route path="/dashboard-user" element={<DashboardUser />} />
-          <Route path="/dashboard-admin" element={<DashboardAdmin />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<WelcomePage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/calendar" element={<BookingCalendar />} />
+        <Route path="/my-bookings" element={<MyBookings />} />
+        <Route path="/dashboard-user" element={<DashboardUser />} />
+        <Route path="/dashboard-admin" element={<DashboardAdmin />} />
+      </Routes>
+    </AuthProvider>
   );
 }
 

@@ -375,64 +375,63 @@ export default function MyBookings() {
     fetchBookedSlots(booking.date, booking.room, true);
   }, [fetchBookedSlots, formatTimeForDisplay]);
 
-  // Save edited booking with validation
-  const saveEdit = useCallback(async () => {
-    if (!newStartTime || !newEndTime || !editingId || !selectedBooking) {
+const saveEdit = useCallback(async () => {
+  if (!newStartTime || !newEndTime || !editingId || !selectedBooking) {
+    setStatusType("error");
+    setStatusMsg("Please select both start and end time.");
+    return;
+  }
+
+  const startMin = timeToMinutes(newStartTime);
+  const endMin = timeToMinutes(newEndTime);
+
+  if (startMin >= endMin) {
+    setStatusType("error");
+    setStatusMsg("End time must be after start time.");
+    return;
+  }
+
+  // Only validate against booked slots for pending bookings
+  if (selectedBooking?.status === 'pending') {
+    if (!isTimeRangeAvailable(newStartTime, newEndTime)) {
       setStatusType("error");
-      setStatusMsg("Please select both start and end time.");
+      setStatusMsg("Selected time slot conflicts with an existing booking.");
       return;
     }
+  }
 
-    const startMin = timeToMinutes(newStartTime);
-    const endMin = timeToMinutes(newEndTime);
-
-    if (startMin >= endMin) {
-      setStatusType("error");
-      setStatusMsg("End time must be after start time.");
-      return;
+  try {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      throw new Error("Authentication token not found");
     }
 
-    // Only validate against booked slots for pending bookings
-    if (selectedBooking?.status === 'pending') {
-      if (!isTimeRangeAvailable(newStartTime, newEndTime)) {
-        setStatusType("error");
-        setStatusMsg("Selected time slot conflicts with an existing booking.");
-        return;
-      }
-    }
+    const payload = {
+      id: editingId,
+      newTime: newStartTime, // Display format (e.g., "8:00am")
+      newEndTime: newEndTime, // Display format
+      email: user.email, // Changed from userEmail to email to match backend
+    };
 
-    try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("Authentication token not found");
-      }
+    await axios.post(`${API_URL}/api/booking/edit`, payload, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
+    });
 
-      const payload = {
-        id: editingId,
-        newTime: newStartTime,
-        newEndTime: newEndTime,
-        email: user.email,
-      };
-
-      await axios.post(`${API_URL}/api/booking/edit`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000
-      });
-
-      setStatusType("success");
-      setStatusMsg("Booking updated successfully!");
-      setEditingId(null);
-      setNewStartTime("");
-      setNewEndTime("");
-      setSelectedBooking(null);
-      await fetchBookings(); // Wait for refresh
-    } catch (error) {
-      console.error("Failed to edit booking:", error);
-      setStatusType("error");
-      setStatusMsg(error.response?.data?.message || 
-                 "Failed to edit booking. Please try again.");
-    }
-  }, [
+    setStatusType("success");
+    setStatusMsg("Booking updated successfully!");
+    setEditingId(null);
+    setNewStartTime("");
+    setNewEndTime("");
+    setSelectedBooking(null);
+    await fetchBookings(); // Wait for refresh
+  } catch (error) {
+    console.error("Failed to edit booking:", error);
+    setStatusType("error");
+    setStatusMsg(error.response?.data?.message || 
+               "Failed to edit booking. Please try again.");
+  }
+},  [
     newStartTime, 
     newEndTime, 
     editingId, 
