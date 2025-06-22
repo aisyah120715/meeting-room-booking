@@ -111,90 +111,87 @@ export default function MyBookings() {
   // --- Fetching Data ---
 
   const fetchBookings = useCallback(async () => {
-    if (loadingAuth || !user?.email) {
-      setIsLoadingBookings(false);
-      return;
+  if (loadingAuth || !user?.email) {
+    setIsLoadingBookings(false);
+    return;
+  }
+  setIsLoadingBookings(true);
+  setStatusMsg("");
+  setStatusType(""); // Clear status messages
+  try {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      throw new Error("Authentication token not found.");
     }
-    setIsLoadingBookings(true);
+    const response = await axios.get(
+      `${API_URL}/api/booking/user-bookings?email=${user.email}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    const allBookings = response.data;
+    const now = new Date(); // Current date and time
+    
+    // Create today's date at midnight for comparison
+    const todayMidnight = new Date(now);
+    todayMidnight.setHours(0, 0, 0, 0);
+
+    const upcoming = [];
+    const past = [];
+
+    allBookings.forEach((booking) => {
+      // Parse booking date and time
+      const bookingDate = new Date(`${booking.date}T${time24hrToIso(booking.time)}`);
+      
+      if (isNaN(bookingDate.getTime())) {
+        console.warn("Invalid booking date encountered:", booking);
+        past.push(booking); // Fallback to past if date is invalid
+        return;
+      }
+
+      // Compare booking date/time with current time
+      if (bookingDate >= now) {
+        upcoming.push(booking);
+      } else {
+        past.push(booking);
+      }
+    });
+
+    // Sort upcoming by earliest start time first
+    upcoming.sort((a, b) => {
+      const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
+      const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // Sort past by latest start time first
+    past.sort((a, b) => {
+      const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
+      const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
+      if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    setBookings(allBookings);
+    setUpcomingBookings(upcoming);
+    setPastBookings(past);
+    setStatusType("");
     setStatusMsg("");
-    setStatusType(""); // Clear status messages
-    try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("Authentication token not found.");
-      }
-      const response = await axios.get(
-        `${API_URL}/api/booking/user-bookings?email=${user.email}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      const allBookings = response.data;
-      const now = new Date(); // Current date and time
-      // Get today's date, normalized to midnight (00:00:00) for comparison
-      // This will set it to today's date, 12:00:00 AM in the client's local timezone
-      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-
-      const upcoming = [];
-      const past = [];
-
-      allBookings.forEach((booking) => {
-        // Parse booking date to a Date object, also normalized to midnight
-        // Use a date string that Date constructor can parse consistently to midnight
-        const bookingDate = new Date(booking.date + 'T00:00:00'); // Forces date to be at midnight for comparison
-
-        if (isNaN(bookingDate.getTime())) {
-          console.warn("Invalid booking date encountered:", booking);
-          past.push(booking); // Fallback to past if date is invalid
-          return;
-        }
-
-        // --- CLASSIFICATION LOGIC (CHANGED HERE) ---
-        // Option 3: Classify by Date only. All of today's bookings are 'upcoming'.
-        if (bookingDate.getTime() >= todayMidnight.getTime()) {
-          upcoming.push(booking);
-        } else {
-          past.push(booking);
-        }
-        // --- END CLASSIFICATION LOGIC ---
-      });
-
-      // Sort upcoming by earliest start time first
-      upcoming.sort((a, b) => {
-        const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
-        const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
-        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
-        return dateA.getTime() - dateB.getTime();
-      });
-
-      // Sort past by latest start time first
-      past.sort((a, b) => {
-        const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
-        const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
-        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      setBookings(allBookings); // Keep all for `isRangeBooked` conflicts
-      setUpcomingBookings(upcoming);
-      setPastBookings(past);
-      setStatusType("");
-      setStatusMsg("");
-    } catch (error) {
-      console.error("Failed to load bookings:", error);
-      setStatusType("error");
-      setStatusMsg(error.response?.data?.message || "Failed to load bookings.");
-      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-        logout();
-        navigate("/login");
-      }
-    } finally {
-      setIsLoadingBookings(false);
+  } catch (error) {
+    console.error("Failed to load bookings:", error);
+    setStatusType("error");
+    setStatusMsg(error.response?.data?.message || "Failed to load bookings.");
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      logout();
+      navigate("/login");
     }
-  }, [user, loadingAuth, logout, navigate, time24hrToIso]); // Dependencies for useCallback
+  } finally {
+    setIsLoadingBookings(false);
+  }
+}, [user, loadingAuth, logout, navigate, time24hrToIso]);
 
   const fetchBookedSlots = useCallback(async (date, room) => {
     setIsLoadingSlots(true);
