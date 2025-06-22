@@ -14,8 +14,7 @@ import {
 } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate} from "react-router-dom";
 
 export default function DashboardAdmin() {
   const [bookings, setBookings] = useState([]);

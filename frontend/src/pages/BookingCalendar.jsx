@@ -7,7 +7,6 @@ import {
   FiBookOpen, 
   FiHome,
   FiLogOut,
-  FiClock,
   FiCheckCircle,
   FiXCircle,
   FiPlus
@@ -43,7 +42,6 @@ export default function BookingCalendar() {
 
   // Fetch booked slots when date or room changes
   useEffect(() => {
-     fetch(`${API_URL}/api/rooms`)
     if (selectedDate && room) {
       axios
         .get(`${API_URL}/api/booking/slots?date=${selectedDate}&room=${room}`)
