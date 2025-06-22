@@ -12,6 +12,7 @@ import {
   FiCheckCircle,
   FiX,
   FiEdit2,
+  FiChevronRight,
   FiPlus,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
@@ -90,7 +91,7 @@ export default function MyBookings() {
   // Format time for display (e.g., "8:00am")
   const formatTimeForDisplay = useCallback((timeStr) => {
     if (!timeStr) return "";
-
+    
     // Handle already formatted times
     if (timeStr.includes('am') || timeStr.includes('pm')) {
       return timeStr.toLowerCase().replace(/\s/g, '');
@@ -107,12 +108,9 @@ export default function MyBookings() {
   // Format date from ISO string to display (e.g., "Sat, Jun 22")
   const formatDate = useCallback((isoDate) => {
     try {
-      if (!isoDate) return "Invalid Date";
-
-      // Handle both ISO strings and existing formatted dates
       const date = new Date(isoDate);
       if (isNaN(date.getTime())) return "Invalid Date";
-
+      
       const options = { weekday: "short", month: "short", day: "numeric" };
       return date.toLocaleDateString("en-US", options);
     } catch (error) {
@@ -124,11 +122,11 @@ export default function MyBookings() {
   // Convert time string to minutes for comparison
   const timeToMinutes = useCallback((timeStr) => {
     if (!timeStr) return 0;
-
+    
     // Extract time and period
     const timePart = timeStr.split(/(am|pm)/i)[0];
     const period = timeStr.toLowerCase().includes('pm') ? 'pm' : 'am';
-
+    
     const [hours, minutes] = timePart.split(':').map(Number);
     let total = hours * 60 + minutes;
     if (period === 'pm' && hours !== 12) total += 12 * 60;
@@ -149,16 +147,16 @@ export default function MyBookings() {
   // Check if a time range is available
   const isTimeRangeAvailable = useCallback((startTime, endTime) => {
     if (!startTime || !endTime) return true;
-
+    
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-
+    
     if (startMinutes >= endMinutes) return false;
-
+    
     return !bookedSlots.some((booked) => {
       const bookedStart = timeToMinutes(booked.start);
       const bookedEnd = timeToMinutes(booked.end);
-
+      
       return (
         (startMinutes >= bookedStart && startMinutes < bookedEnd) ||
         (endMinutes > bookedStart && endMinutes <= bookedEnd) ||
@@ -173,31 +171,25 @@ export default function MyBookings() {
       setIsLoadingBookings(false);
       return;
     }
-
+    
     setIsLoadingBookings(true);
     setStatusMsg("");
     setStatusType("");
-
+    
     try {
       const token = localStorage.getItem("authToken");
       if (!token) {
         throw new Error("Authentication token not found");
       }
-
-      // Verify token expiration if possible
-      if (isTokenExpired(token)) { // Implement this function
-        await logout();
-        navigate("/login");
-        return;
-      }
+      
       const response = await axios.get(
         `${API_URL}/api/booking/user-bookings?email=${user.email}`,
-        {
+        { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000 // 10 second timeout
         }
       );
-
+      
       const allBookings = Array.isArray(response.data) ? response.data : [];
       const now = new Date();
       const todayMidnight = new Date(now);
@@ -216,7 +208,7 @@ export default function MyBookings() {
 
           const bookingDate = new Date(booking.date);
           bookingDate.setHours(0, 0, 0, 0);
-
+          
           if (isNaN(bookingDate.getTime())) {
             console.warn("Invalid booking date:", booking);
             past.push(booking);
@@ -231,7 +223,7 @@ export default function MyBookings() {
             // For today's bookings, check end time
             const bookingEndTime = timeToMinutes(formatTimeForDisplay(booking.end_time));
             const currentTime = now.getHours() * 60 + now.getMinutes();
-
+            
             if (bookingEndTime > currentTime) {
               upcoming.push(booking);
             } else {
@@ -273,12 +265,12 @@ export default function MyBookings() {
     } catch (error) {
       console.error("Failed to load bookings:", error);
       setStatusType("error");
-      setStatusMsg(error.response?.data?.message ||
-        error.message ||
-        "Failed to load bookings. Please try again.");
-
+      setStatusMsg(error.response?.data?.message || 
+                  error.message || 
+                  "Failed to load bookings. Please try again.");
+      
       if (error.response?.status === 401 || error.response?.status === 403) {
-        await logout();
+        logout();
         navigate("/login");
       }
     } finally {
@@ -286,34 +278,26 @@ export default function MyBookings() {
     }
   }, [user, loadingAuth, API_URL, logout, navigate, timeToMinutes, formatTimeForDisplay]);
 
-  function isTokenExpired(token) {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.exp * 1000 < Date.now();
-    } catch {
-      return true;
-    }
-  }
   // Fetch booked time slots with improved error handling
   const fetchBookedSlots = useCallback(async (date, room, ignoreError = false) => {
     if (!date || !room) {
       setSlotError("Invalid date or room provided");
       return;
     }
-
+    
     setIsLoadingSlots(true);
     setSlotError(null);
-
+    
     try {
       const token = localStorage.getItem("authToken");
       const res = await axios.get(
         `${API_URL}/api/booking/slots?date=${date}&room=${room}`,
-        {
+        { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 5000
         }
       );
-
+      
       // Convert to formatted times
       const formattedSlots = res.data.map(slot => ({
         start: formatTimeForDisplay(slot.time),
@@ -324,8 +308,8 @@ export default function MyBookings() {
       console.error("Failed to load booked slots:", error);
       setBookedSlots([]);
       if (!ignoreError) {
-        setSlotError(error.response?.data?.message ||
-          "Failed to load booked time slots. Please try again.");
+        setSlotError(error.response?.data?.message || 
+                   "Failed to load booked time slots. Please try again.");
       }
     } finally {
       setIsLoadingSlots(false);
@@ -339,33 +323,33 @@ export default function MyBookings() {
       setStatusMsg("Invalid booking or user information");
       return;
     }
-
+    
     setStatusMsg("");
     setStatusType("");
-
+    
     try {
       const token = localStorage.getItem("authToken");
       if (!token) {
         throw new Error("Authentication token not found");
       }
-
+      
       await axios.post(
         `${API_URL}/api/booking/cancel`,
         { id, email: user.email },
-        {
+        { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
         }
       );
-
+      
       setStatusType("success");
       setStatusMsg("Booking cancelled successfully!");
       await fetchBookings(); // Wait for refresh
     } catch (error) {
       console.error("Failed to cancel booking:", error);
       setStatusType("error");
-      setStatusMsg(error.response?.data?.message ||
-        "Failed to cancel booking. Please try again.");
+      setStatusMsg(error.response?.data?.message || 
+                 "Failed to cancel booking. Please try again.");
     }
   }, [user, API_URL, fetchBookings]);
 
@@ -376,7 +360,7 @@ export default function MyBookings() {
       setStatusMsg("Approved bookings cannot be edited.");
       return;
     }
-
+    
     if (booking.status === 'cancelled') {
       setStatusType("error");
       setStatusMsg("Cancelled bookings cannot be edited.");
@@ -386,41 +370,16 @@ export default function MyBookings() {
     setEditingId(booking.id);
     setNewStartTime(formatTimeForDisplay(booking.time));
     setNewEndTime(formatTimeForDisplay(booking.end_time));
-    setSelectedBooking(booking); // Store the full booking object
-
-    // Fetch slots for the specific date and room of the booking being edited
+    setSelectedBooking(booking);
+    
     fetchBookedSlots(booking.date, booking.room, true);
   }, [fetchBookedSlots, formatTimeForDisplay]);
 
-  // Helper to convert 12-hour format to 24-hour format (e.g., "1:00pm" -> "13:00")
-  const convertTo24Hour = useCallback((timeStr) => {
-    if (!timeStr) return "";
-    const [timePart, period] = timeStr.toLowerCase().split(/(am|pm)/);
-    let [hours, minutes] = timePart.split(':').map(Number);
-
-    if (period === 'pm' && hours !== 12) {
-      hours += 12;
-    } else if (period === 'am' && hours === 12) {
-      hours = 0; // Midnight (12 AM) is 00 hours
-    }
-    // Pad with leading zero if hours or minutes are single digit
-    const formattedHours = String(hours).padStart(2, '0');
-    const formattedMinutes = String(minutes).padStart(2, '0');
-    return `${formattedHours}:${formattedMinutes}`;
-  }, []);
-
   // Save edited booking with validation
   const saveEdit = useCallback(async () => {
-    // Validate inputs
-    if (!newStartTime || !newEndTime) {
+    if (!newStartTime || !newEndTime || !editingId || !selectedBooking) {
       setStatusType("error");
       setStatusMsg("Please select both start and end time.");
-      return;
-    }
-
-    if (!editingId || !selectedBooking) {
-      setStatusType("error");
-      setStatusMsg("No booking selected for editing.");
       return;
     }
 
@@ -433,11 +392,13 @@ export default function MyBookings() {
       return;
     }
 
-    // Only perform conflict check for pending bookings
-    if (selectedBooking.status === 'pending' && !isTimeRangeAvailable(newStartTime, newEndTime)) {
+    // Only validate against booked slots for pending bookings
+    if (selectedBooking?.status === 'pending') {
+      if (!isTimeRangeAvailable(newStartTime, newEndTime)) {
         setStatusType("error");
         setStatusMsg("Selected time slot conflicts with an existing booking.");
         return;
+      }
     }
 
     try {
@@ -448,220 +409,265 @@ export default function MyBookings() {
 
       const payload = {
         id: editingId,
-        date: selectedBooking.date, // <--- ADDED THIS LINE
-        room: selectedBooking.room, // <--- ADDED THIS LINE
-        newStartTime: convertTo24Hour(newStartTime),
-        newEndTime: convertTo24Hour(newEndTime),
+        newTime: newStartTime,
+        newEndTime: newEndTime,
         email: user.email,
       };
 
-      await axios.post(
-        `${API_URL}/api/booking/edit`,
-        payload,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 10000
-        }
-      );
+      await axios.post(`${API_URL}/api/booking/edit`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
+      });
 
       setStatusType("success");
       setStatusMsg("Booking updated successfully!");
       setEditingId(null);
       setNewStartTime("");
       setNewEndTime("");
-      fetchBookings(); // Refresh bookings
+      setSelectedBooking(null);
+      await fetchBookings(); // Wait for refresh
     } catch (error) {
       console.error("Failed to edit booking:", error);
       setStatusType("error");
-      setStatusMsg(error.response?.data?.message ||
-        "Failed to edit booking. Please try again.");
+      setStatusMsg(error.response?.data?.message || 
+                 "Failed to edit booking. Please try again.");
     }
   }, [
-    newStartTime,
-    newEndTime,
-    editingId,
-    selectedBooking, // Ensure selectedBooking is a dependency
-    timeToMinutes,
-    isTimeRangeAvailable,
-    API_URL,
-    user,
-    fetchBookings,
-    convertTo24Hour
+    newStartTime, 
+    newEndTime, 
+    editingId, 
+    selectedBooking, 
+    user, 
+    API_URL, 
+    timeToMinutes, 
+    isTimeRangeAvailable, 
+    fetchBookings
   ]);
 
+  // Handle logout with proper cleanup
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Fallback in case logout fails
+      localStorage.removeItem("authToken");
+      navigate("/login");
+    }
+  }, [logout, navigate]);
 
+  // Render booking cards with error boundaries
+  const renderBookingCards = useCallback((bookingsToRender) => {
+    if (!Array.isArray(bookingsToRender) || !bookingsToRender.length) {
+      return (
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
+          No bookings to display.
+        </div>
+      );
+    }
+
+    return bookingsToRender.map((b) => (
+      <ErrorBoundary key={b.id}>
+        <motion.div
+          className="bg-white rounded-xl shadow-sm overflow-hidden"
+          whileHover={{ y: -2 }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <div className="p-6">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center">
+                <div className="p-3 bg-blue-50 rounded-lg mr-4 text-blue-600">
+                  <FiClock className="text-lg" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    {b.room || "Unknown Room"}
+                  </h3>
+                  <p className="text-gray-600 mt-1">
+                    {formatDate(b.date)} • {formatTimeForDisplay(b.time)} -{" "}
+                    {formatTimeForDisplay(b.end_time)}
+                  </p>
+                </div>
+              </div>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  b.status === "approved"
+                    ? "bg-green-100 text-green-800"
+                    : b.status === "cancelled"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}
+              >
+                {b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Unknown"}
+              </span>
+            </div>
+
+            {editingId === b.id && (
+              <div className="mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Start Time
+                    </label>
+                    <select
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
+                      value={newStartTime}
+                      onChange={(e) => {
+                        setNewStartTime(e.target.value);
+                        setNewEndTime("");
+                      }}
+                    >
+                      <option value="">Select start time</option>
+                      {HOURS.map((h) => {
+                        const isBooked = isTimeSlotBooked(h) && h !== formatTimeForDisplay(b.time);
+                        return (
+                          <option
+                            key={h}
+                            value={h}
+                            disabled={isBooked}
+                            className={isBooked ? 'text-gray-400 bg-gray-100' : ''}
+                          >
+                            {h}
+                            {isBooked && " (Booked)"}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      End Time
+                    </label>
+                    <select
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
+                      value={newEndTime}
+                      onChange={(e) => setNewEndTime(e.target.value)}
+                      disabled={!newStartTime}
+                    >
+                      <option value="">Select end time</option>
+                      {HOURS.map((h) => {
+                        const startMin = timeToMinutes(newStartTime);
+                        const endMin = timeToMinutes(h);
+                        const isAfterStart = endMin > startMin;
+                        const isCurrentEnd = h === formatTimeForDisplay(b.end_time);
+                        const isAvailable = isAfterStart && 
+                          (selectedBooking?.status !== 'pending' || 
+                           isTimeRangeAvailable(newStartTime, h) ||
+                           isCurrentEnd);
+
+                        let disabledReason = "";
+                        if (!isAfterStart) disabledReason = " (Before start)";
+                        else if (!isAvailable) disabledReason = " (Unavailable)";
+
+                        return (
+                          <option
+                            key={h}
+                            value={h}
+                            disabled={!isAvailable}
+                            className={!isAvailable ? 'text-gray-400 bg-gray-100' : ''}
+                          >
+                            {h}
+                            {disabledReason}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+
+                {isLoadingSlots && (
+                  <div className="mt-2 text-sm text-gray-500 flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
+                    Loading available times...
+                  </div>
+                )}
+                {slotError && (
+                  <div className="mt-2 text-sm text-red-500">{slotError}</div>
+                )}
+
+                <div className="mt-4 flex justify-end space-x-3">
+                  <button
+                    onClick={() => {
+                      setEditingId(null);
+                      setNewStartTime("");
+                      setNewEndTime("");
+                      setSelectedBooking(null);
+                      setStatusMsg("");
+                      setStatusType("");
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    className="px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium text-white hover:bg-blue-700 transition-colors flex items-center"
+                  >
+                    <FiCheckCircle className="mr-2" />
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {editingId !== b.id && (
+              <div className="mt-4 flex justify-end space-x-3">
+                <button
+                  onClick={() => handleEdit(b)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
+                    b.status === 'approved' || b.status === 'cancelled'
+                      ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  } transition-colors`}
+                  disabled={b.status === 'approved' || b.status === 'cancelled'}
+                >
+                  <FiEdit2 className="mr-2" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleCancel(b.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center ${
+                    b.status === 'cancelled'
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-red-600 hover:bg-red-700"
+                  } transition-colors`}
+                  disabled={b.status === 'cancelled'}
+                >
+                  <FiX className="mr-2" />
+                  Cancel Booking
+                </button>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </ErrorBoundary>
+    ));
+  }, [
+    editingId,
+    newStartTime,
+    newEndTime,
+    isLoadingSlots,
+    slotError,
+    saveEdit,
+    handleEdit,
+    handleCancel,
+    formatDate,
+    formatTimeForDisplay,
+    timeToMinutes,
+    isTimeSlotBooked,
+    isTimeRangeAvailable,
+    selectedBooking
+  ]);
+
+  // Load bookings on component mount
   useEffect(() => {
     if (!loadingAuth && user?.email) {
       fetchBookings();
+    } else if (!loadingAuth && !user) {
+      setIsLoadingBookings(false);
     }
-  }, [user, loadingAuth, fetchBookings]);
-
-
-  const renderBookingCard = (b) => (
-    <motion.div
-      key={b.id}
-      className="bg-white rounded-xl shadow-sm overflow-hidden"
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 300 }}
-    >
-      <div className="p-6">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center">
-            <div className="p-3 bg-blue-50 rounded-lg mr-4 text-blue-600">
-              <FiClock className="text-lg" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">{b.room}</h3>
-              <p className="text-gray-600 mt-1">
-                {formatDate(b.date)} • {formatTimeForDisplay(b.time)} - {formatTimeForDisplay(b.end_time)}
-              </p>
-            </div>
-          </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-            b.status === 'approved' ? 'bg-green-100 text-green-800' :
-            b.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-            'bg-yellow-100 text-yellow-800'
-          }`}>
-            {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
-          </span>
-        </div>
-
-        {editingId === b.id ? (
-          <div className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-                  value={newStartTime}
-                  onChange={(e) => {
-                    setNewStartTime(e.target.value);
-                    setNewEndTime(""); // Reset end time when start time changes
-                  }}
-                >
-                  <option value="">Select start time</option>
-                  {HOURS.map((h) => {
-                    // Check if the current time slot is part of an existing booking range (excluding the current booking's original slot)
-                    const isBookedExcludingCurrent = bookedSlots.some(
-                      (slot) => {
-                        const slotStartMin = timeToMinutes(slot.start);
-                        const slotEndMin = timeToMinutes(slot.end);
-                        const hMin = timeToMinutes(h);
-                        const currentBookingStartMin = timeToMinutes(formatTimeForDisplay(b.time));
-                        const currentBookingEndMin = timeToMinutes(formatTimeForDisplay(b.end_time));
-
-                        // Only consider it booked if it's outside the current booking's original time range
-                        return (hMin >= slotStartMin && hMin < slotEndMin) &&
-                               !(hMin >= currentBookingStartMin && hMin < currentBookingEndMin);
-                      }
-                    );
-
-                    return (
-                      <option
-                        key={h}
-                        value={h}
-                        disabled={isBookedExcludingCurrent}
-                        className={isBookedExcludingCurrent ? 'text-gray-400' : ''}
-                      >
-                        {h} {isBookedExcludingCurrent && " (Booked)"}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-blue-500 focus:ring-blue-500"
-                  value={newEndTime}
-                  onChange={(e) => setNewEndTime(e.target.value)}
-                  disabled={!newStartTime}
-                >
-                  <option value="">Select end time</option>
-                  {HOURS.map((h) => {
-                    const isAfterStart = newStartTime && timeToMinutes(h) > timeToMinutes(newStartTime);
-
-                    // Check availability considering the selected start time and excluding the current booking's original slot
-                    const isRangeAvailable = isAfterStart && isTimeRangeAvailable(newStartTime, h, b.id);
-
-                    const isCurrentBookingTime = (
-                      timeToMinutes(h) > timeToMinutes(formatTimeForDisplay(b.time)) &&
-                      timeToMinutes(h) <= timeToMinutes(formatTimeForDisplay(b.end_time))
-                    );
-
-                    const isDisabled = !isAfterStart || (!isRangeAvailable && !isCurrentBookingTime);
-
-                    return (
-                      <option
-                        key={h}
-                        value={h}
-                        disabled={isDisabled}
-                        className={isDisabled ? 'text-gray-400' : ''}
-                      >
-                        {h}
-                        {(!isAfterStart && " (Before start)") ||
-                         (!isRangeAvailable && !isCurrentBookingTime && " (Unavailable)")}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
-
-            {isLoadingSlots && (
-              <div className="mt-2 text-sm text-gray-500">Loading available times...</div>
-            )}
-            {slotError && (
-              <div className="mt-2 text-sm text-red-500">{slotError}</div>
-            )}
-
-            <div className="mt-4 flex justify-end space-x-3">
-              <button
-                onClick={() => setEditingId(null)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveEdit}
-                className="px-4 py-2 bg-blue-600 rounded-lg text-sm font-medium text-white hover:bg-blue-700 transition-colors flex items-center"
-              >
-                <FiCheckCircle className="mr-2" />
-                Save Changes
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-4 flex justify-end space-x-3">
-            <button
-              onClick={() => handleEdit(b)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
-                b.status === 'approved' || b.status === 'cancelled'
-                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              } transition-colors`}
-              disabled={b.status === 'approved' || b.status === 'cancelled'}
-            >
-              <FiEdit2 className="mr-2" />
-              Edit
-            </button>
-            <button
-              onClick={() => handleCancel(b.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center ${
-                b.status === 'cancelled'
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700'
-              } transition-colors`}
-              disabled={b.status === 'cancelled'}
-            >
-              <FiX className="mr-2" />
-              Cancel Booking
-            </button>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
+  }, [loadingAuth, user, fetchBookings]);
 
   return (
     <ErrorBoundary>
@@ -704,13 +710,15 @@ export default function MyBookings() {
               </div>
               <div>
                 <p className="text-sm font-medium">{user?.name || "User"}</p>
-                <p className="text-xs text-green-200">{user?.email || "user@example.com"}</p>
+                <p className="text-xs text-green-200">
+                  {user?.email || "user@example.com"}
+                </p>
               </div>
             </div>
 
             <button
               className="flex items-center w-full p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all mt-2"
-              onClick={() => navigate("/login")}
+              onClick={handleLogout}
             >
               <FiLogOut className="mr-3 text-lg" />
               <span>Logout</span>
@@ -722,7 +730,9 @@ export default function MyBookings() {
         <div className="flex-1 p-6">
           <header className="bg-white shadow-sm p-6 mb-6 rounded-lg">
             <h1 className="text-2xl font-bold text-gray-800">My Bookings</h1>
-            <p className="text-gray-600">View and manage your active and upcoming bookings</p>
+            <p className="text-gray-600">
+              View and manage your active and upcoming bookings
+            </p>
           </header>
 
           {statusMsg && (
@@ -740,14 +750,21 @@ export default function MyBookings() {
           )}
 
           {isLoadingBookings ? (
-            <div className="text-center py-8 text-gray-500">Loading your bookings...</div>
+            <div className="flex justify-center items-center h-48">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+              <p className="ml-3 text-gray-700">Loading your bookings...</p>
+            </div>
           ) : bookings.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm p-8 text-center max-w-2xl mx-auto">
               <div className="mx-auto h-16 w-16 text-gray-400 mb-4">
                 <FiCalendar className="w-full h-full" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900">No bookings yet</h3>
-              <p className="mt-1 text-gray-500 mb-6">You haven't made any bookings yet.</p>
+              <h3 className="text-lg font-medium text-gray-900">
+                No bookings yet
+              </h3>
+              <p className="mt-1 text-gray-500 mb-6">
+                You haven't made any bookings yet.
+              </p>
               <Link
                 to="/calendar"
                 className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
@@ -757,41 +774,28 @@ export default function MyBookings() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-6">
-              {upcomingBookings.length > 0 && (
-                <section>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Upcoming Bookings</h2>
-                  <div className="space-y-4">
-                    {upcomingBookings.map(renderBookingCard)}
-                  </div>
-                </section>
-              )}
+            <div className="space-y-8 max-w-4xl">
+              {/* Upcoming Bookings Section */}
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                  <FiChevronRight className="text-green-600 mr-2" /> Upcoming
+                  Bookings ({upcomingBookings.length})
+                </h2>
+                <div className="grid grid-cols-1 gap-6">
+                  {renderBookingCards(upcomingBookings)}
+                </div>
+              </div>
 
-              {pastBookings.length > 0 && (
-                <section>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Past Bookings</h2>
-                  <div className="space-y-4">
-                    {pastBookings.map(renderBookingCard)}
-                  </div>
-                </section>
-              )}
-
-              {upcomingBookings.length === 0 && pastBookings.length === 0 && (
-                 <div className="bg-white rounded-xl shadow-sm p-8 text-center max-w-2xl mx-auto">
-                 <div className="mx-auto h-16 w-16 text-gray-400 mb-4">
-                   <FiCalendar className="w-full h-full" />
-                 </div>
-                 <h3 className="text-lg font-medium text-gray-900">No bookings yet</h3>
-                 <p className="mt-1 text-gray-500 mb-6">You haven't made any bookings yet.</p>
-                 <Link
-                   to="/calendar"
-                   className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                 >
-                   <FiPlus className="mr-2" />
-                   Book a Room
-                 </Link>
-               </div>
-              )}
+              {/* Past Bookings Section */}
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                  <FiChevronRight className="text-blue-600 mr-2" /> Past Bookings
+                  ({pastBookings.length})
+                </h2>
+                <div className="grid grid-cols-1 gap-6">
+                  {renderBookingCards(pastBookings)}
+                </div>
+              </div>
             </div>
           )}
         </div>
