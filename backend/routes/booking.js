@@ -142,7 +142,7 @@ router.post("/edit", async (req, res) => {
 });
 
 router.get('/approved', (req, res) => {
-  const sql = `SELECT id, date, time, user_email, user_name, status, created_at, room, end_time 
+  const sql = `SELECT id, date, time, user_email, status, created_at, room, end_time 
                FROM bookings WHERE status = 'approved' ORDER BY date, time`;
   
   db.query(sql, (err, results) => {
