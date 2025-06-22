@@ -4,6 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiUser, FiMail, FiLock, FiArrowRight } from "react-icons/fi";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 export default function Signup() {
   const [form, setForm] = useState({ 
     name: "", 
@@ -32,7 +34,7 @@ export default function Signup() {
     }
 
     try {
-      await axios.post("http://localhost:5000/api/auth/register", form);
+      await axios.post("${API_URL}/api/auth/register", form);
       alert("Registered successfully! You can now log in.");
       navigate("/login");
     } catch (err) {

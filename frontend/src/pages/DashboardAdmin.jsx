@@ -26,7 +26,9 @@ export default function DashboardAdmin() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const API_BASE = "http://localhost:5000/api/admin";
+  const API_URL = process.env.REACT_APP_API_URL;
+  const API_BASE = `${API_URL}/api/admin`;
+
 
   useEffect(() => {
     fetchAllData();

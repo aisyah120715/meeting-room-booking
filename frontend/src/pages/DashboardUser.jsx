@@ -15,6 +15,8 @@ import {
 import { motion } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 export default function DashboardUser() {
   const [approvedBookings, setApprovedBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ export default function DashboardUser() {
   useEffect(() => {
     const fetchApprovedBookings = async () => {
       try {
-        const response = await axios.get("http://localhost:5000/api/booking/approved");
+        const response = await axios.get("${API_URL}/api/booking/approved");
         setApprovedBookings(response.data);
         setError("");
       } catch (err) {

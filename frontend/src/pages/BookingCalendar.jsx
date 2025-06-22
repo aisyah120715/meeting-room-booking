@@ -15,6 +15,8 @@ import {
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom"; 
 
+const API_URL = process.env.REACT_APP_API_URL;
+
 export default function BookingCalendar() {
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -25,6 +27,7 @@ export default function BookingCalendar() {
   const [status, setStatus] = useState(""); // success | error
   const { user } = useAuth();
   const navigate = useNavigate();
+
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -40,9 +43,10 @@ export default function BookingCalendar() {
 
   // Fetch booked slots when date or room changes
   useEffect(() => {
+     fetch(`${API_URL}/api/rooms`)
     if (selectedDate && room) {
       axios
-        .get(`http://localhost:5000/api/booking/slots?date=${selectedDate}&room=${room}`)
+        .get(`${API_URL}/api/booking/slots?date=${selectedDate}&room=${room}`)
         .then((res) => {
           setBookedSlots(res.data);
         })
@@ -100,12 +104,12 @@ export default function BookingCalendar() {
       userName: user?.name
     };
 
-    axios.post("http://localhost:5000/api/booking/create", payload)
+    axios.post("${API_URL}/api/booking/create", payload)
       .then(() => {
         setStatus("success");
         setConfirmationMsg("Booking confirmed! A confirmation email has been sent.");
         // Refresh booked slots
-        axios.get(`http://localhost:5000/api/booking/slots?date=${selectedDate}&room=${room}`)
+        axios.get(`${API_URL}/api/booking/slots?date=${selectedDate}&room=${room}`)
           .then((res) => setBookedSlots(res.data));
       })
       .catch((err) => {

@@ -34,6 +34,8 @@ export default function MyBookings() {
   
   const navigate = useNavigate();
 
+  const API_URL = process.env.REACT_APP_API_URL;
+
   // Standard business hours
   const hours = [
     "8:00am", "9:00am", "10:00am", "11:00am",
@@ -46,7 +48,7 @@ export default function MyBookings() {
 
   const fetchBookings = () => {
     axios
-      .get(`http://localhost:5000/api/booking/user-bookings?email=${user.email}`)
+      .get(`${API_URL}/api/booking/user-bookings?email=${user.email}`)
       .then((res) => setBookings(res.data))
       .catch(() => {
         setStatusType("error");
