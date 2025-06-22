@@ -1,24 +1,29 @@
-import logo from './logo.svg';
-import './App.css';
+// src/App.jsx
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext"; // ✅
+import BookingCalendar from "./pages/BookingCalendar";
+import MyBookings from "./pages/MyBookings";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import DashboardUser from "./pages/DashboardUser";
+import DashboardAdmin from "./pages/DashboardAdmin";
+import WelcomePage from "./pages/WelcomePage";
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<WelcomePage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/calendar" element={<BookingCalendar />} />
+          <Route path="/my-bookings" element={<MyBookings />} />
+          <Route path="/dashboard-user" element={<DashboardUser />} />
+          <Route path="/dashboard-admin" element={<DashboardAdmin />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
