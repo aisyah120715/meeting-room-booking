@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react"; // Added useCallback
 import axios from "axios";
 import { useAuth } from "../contexts/AuthContext";
 import { Link } from "react-router-dom";
@@ -10,17 +10,30 @@ import {
   FiUser,
   FiClock,
   FiCheckCircle,
-  FiXCircle,
+  FiX, // Used for cancel button
   FiEdit2,
-  FiX,
   FiChevronRight,
   FiPlus,
-} from "react-icons/fi";
+} from "react-icons/fi"; // Removed FiXCircle as FiX is used for cancel
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
+// Standard business hours (ensure these match your backend's format or are convertible)
+// Moved outside to avoid recreation on every render, as it's static
+const HOURS = [
+  "8:00am",
+  "9:00am",
+  "10:00am",
+  "11:00am",
+  "12:00pm",
+  "1:00pm",
+  "2:00pm",
+  "3:00pm",
+  "4:00pm",
+];
+
 export default function MyBookings() {
-  const { user, setUser } = useAuth(); // Added setUser for logout
+  const { user, logout, loadingAuth } = useAuth(); // Use logout from context, no need for setUser(null) + removeItem
   const [bookings, setBookings] = useState([]);
   const [upcomingBookings, setUpcomingBookings] = useState([]);
   const [pastBookings, setPastBookings] = useState([]);
@@ -33,120 +46,39 @@ export default function MyBookings() {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [slotError, setSlotError] = useState(null);
+  const [isLoadingBookings, setIsLoadingBookings] = useState(true); // New state for loading bookings initially
 
   const navigate = useNavigate();
 
   const API_URL = process.env.REACT_APP_API_URL;
 
-  // Standard business hours (ensure these match your backend's format or are convertible)
-  const hours = [
-    "8:00am",
-    "9:00am",
-    "10:00am",
-    "11:00am",
-    "12:00pm",
-    "1:00pm",
-    "2:00pm",
-    "3:00pm",
-    "4:00pm",
-  ];
+  // --- Helper Functions (Memoized with useCallback) ---
 
-  useEffect(() => {
-    if (user?.email) fetchBookings();
-  }, [user]);
-
-  const fetchBookings = () => {
-    axios
-      .get(`${API_URL}/api/booking/user-bookings?email=${user.email}`)
-      .then((res) => {
-        const allBookings = res.data;
-        const now = new Date(); // Current date and time (e.g., June 22, 2025, 10:16 PM)
-
-        const upcoming = [];
-        const past = [];
-
-        allBookings.forEach((booking) => {
-          // IMPORTANT: Construct Date objects with both date AND time for accurate comparison
-          // Assuming booking.date is 'YYYY-MM-DD' and booking.end_time is 'HH:MM' (24-hour format from backend)
-          const bookingEndDateTime = new Date(`${booking.date}T${time24hrToIso(booking.end_time)}`);
-
-          // Compare the booking's end time with the current time
-          if (bookingEndDateTime > now) { // If the booking's end time is in the future
-            upcoming.push(booking);
-          } else { // If the booking's end time is in the past or exactly now
-            past.push(booking);
-          }
-        });
-
-        // Sort upcoming bookings by date and time ascending
-        upcoming.sort((a, b) => {
-          const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
-          const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
-          return dateA - dateB;
-        });
-
-        // Sort past bookings by date and time descending
-        past.sort((a, b) => {
-          const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
-          const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
-          return dateB - dateA;
-        });
-
-        setBookings(allBookings); // Keep all bookings for edit/cancel logic
-        setUpcomingBookings(upcoming);
-        setPastBookings(past);
-      })
-      .catch((error) => {
-        console.error("Failed to load bookings:", error);
-        setStatusType("error");
-        setStatusMsg("Failed to load bookings.");
-      });
-  };
-
-  // Helper to convert 'HH:MM AM/PM' to 'HH:MM:00' (24-hour) for Date constructor
-  const timeAmPmTo24hr = (timeAmPm) => {
+  // Helper to convert 'HH:MM AM/PM' to 'HH:MM:00' (24-hour) for internal Date constructor use
+  // This is used for creating date objects, NOT for display.
+  const timeAmPmTo24hrISO = useCallback((timeAmPm) => {
     if (!timeAmPm) return "00:00:00";
-    const [time, period] = timeAmPm.split(/(am|pm)/i);
+    // Normalize input to handle "8:00am" or "8:00AM"
+    const cleanedTime = timeAmPm.toLowerCase().replace(/\s/g, '');
+    const [time, period] = cleanedTime.split(/(am|pm)/); // Regex split retains the delimiter
     let [hours, minutes] = time.split(":").map(Number);
-    const lowerPeriod = period?.toLowerCase();
 
-    if (lowerPeriod === "pm" && hours !== 12) {
-        hours += 12;
-    } else if (lowerPeriod === "am" && hours === 12) {
-        hours = 0; // 12 AM is 00 hours
+    if (period === "pm" && hours !== 12) {
+      hours += 12;
+    } else if (period === "am" && hours === 12) {
+      hours = 0; // 12 AM is 00 hours
     }
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-  };
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+  }, []); // No dependencies
 
-  // Helper to convert 'HH:MM:SS' (from DB) to 'HH:MM' for Date constructor
-  // Or directly to HH:MM if DB is already HH:MM
-  const time24hrToIso = (time24hr) => {
+  // Helper to convert DB's 24-hour time ('HH:MM:SS' or 'HH:MM') to 'HH:MM' for Date constructor
+  const time24hrToIso = useCallback((time24hr) => {
     if (!time24hr) return "00:00";
-    // Assuming backend time is HH:MM:SS or HH:MM. We need HH:MM for Date constructor with T
     return time24hr.slice(0, 5); // Take first 5 chars "HH:MM"
-  }
+  }, []); // No dependencies
 
-
-  const fetchBookedSlots = (date, room) => {
-    setIsLoadingSlots(true);
-    setSlotError(null);
-    axios
-      .get(`${API_URL}/api/booking/slots?date=${date}&room=${room}`)
-      .then((res) => {
-        // The backend `getSlotRange` returns slots like "8:00am", "9:00am".
-        // Ensure this matches the `hours` array directly.
-        setBookedSlots(res.data);
-      })
-      .catch((error) => {
-        console.error("Failed to load booked time slots:", error);
-        setBookedSlots([]);
-        setSlotError("Failed to load booked time slots");
-      })
-      .finally(() => setIsLoadingSlots(false));
-  };
-
-  // This function converts DB's 24-hour time to your display format (e.g., "8:00am")
-  const formatTimeForDisplay = (time24) => {
+  // This function converts DB's 24-hour time ('HH:MM:SS' or 'HH:MM') to your display format (e.g., "8:00am")
+  const formatTimeForDisplay = useCallback((time24) => {
     if (!time24) return "";
     const [hourStr, minuteStr] = time24.split(":");
     let hour = parseInt(hourStr, 10);
@@ -154,27 +86,185 @@ export default function MyBookings() {
     hour = hour % 12;
     hour = hour === 0 ? 12 : hour; // Convert 0 (midnight) to 12 AM
     return `${hour}:${minuteStr}${period}`;
-  };
+  }, []); // No dependencies
 
-  const handleCancel = (id) => {
-    axios
-      .post(`${API_URL}/api/booking/cancel`, { id, email: user.email })
-      .then(() => {
-        setStatusType("success");
-        setStatusMsg("Booking cancelled successfully!");
-        fetchBookings();
-      })
-      .catch((error) => {
-        console.error("Failed to cancel booking:", error);
-        setStatusType("error");
-        setStatusMsg("Failed to cancel booking.");
+  // This function formats date from ISO string to display (e.g., "Sat, Jun 22")
+  const formatDate = useCallback((isoDate) => {
+    if (!isoDate) return "Invalid Date";
+    const date = new Date(isoDate);
+    if (isNaN(date.getTime())) return "Invalid Date"; // Check for invalid date
+    const options = { weekday: "short", month: "short", day: "numeric" };
+    return date.toLocaleDateString("en-US", options);
+  }, []); // No dependencies
+
+  // This function converts your 'hours' array time (e.g., '8:00am') to numerical minutes for comparison
+  const timeToMinutes = useCallback((timeStr) => {
+    if (!timeStr) return 0;
+    const cleanedTime = timeStr.toLowerCase().replace(/\s/g, '');
+    const timePart = cleanedTime.split(/(am|pm)/)[0];
+    const period = cleanedTime.includes("pm") ? "pm" : "am";
+
+    let [hours, minutes] = timePart.split(":").map(Number);
+    let total = hours * 60 + minutes;
+    if (period === "pm" && hours !== 12) total += 12 * 60;
+    if (period === "am" && hours === 12) total -= 12 * 60;
+    return total;
+  }, []); // No dependencies
+
+  // --- Fetching Data ---
+
+  const fetchBookings = useCallback(async () => {
+    if (loadingAuth || !user?.email) {
+      setIsLoadingBookings(false); // Ensure loading is off if no user/auth loading
+      return;
+    }
+    setIsLoadingBookings(true);
+    setStatusMsg(""); // Clear previous status messages
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        throw new Error("Authentication token not found.");
+      }
+      const response = await axios.get(
+        `${API_URL}/api/booking/user-bookings?email=${user.email}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const allBookings = response.data;
+      const now = new Date();
+
+      const upcoming = [];
+      const past = [];
+
+      allBookings.forEach((booking) => {
+        const bookingEndDateTime = new Date(`${booking.date}T${time24hrToIso(booking.end_time)}`);
+
+        if (isNaN(bookingEndDateTime.getTime())) {
+          console.warn("Invalid booking end date/time encountered:", booking);
+          // Decide how to handle invalid dates - e.g., push to past or skip
+          past.push(booking); // For now, push to past if invalid
+          return;
+        }
+
+        if (bookingEndDateTime > now) {
+          upcoming.push(booking);
+        } else {
+          past.push(booking);
+        }
       });
-  };
 
-  const handleEdit = (booking) => {
+      upcoming.sort((a, b) => {
+        const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
+        const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
+        // Handle potential invalid dates during sort
+        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      past.sort((a, b) => {
+        const dateA = new Date(`${a.date}T${time24hrToIso(a.time)}`);
+        const dateB = new Date(`${b.date}T${time24hrToIso(b.time)}`);
+        // Handle potential invalid dates during sort
+        if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) return 0;
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setBookings(allBookings);
+      setUpcomingBookings(upcoming);
+      setPastBookings(past);
+      setStatusType("");
+      setStatusMsg("");
+    } catch (error) {
+      console.error("Failed to load bookings:", error);
+      setStatusType("error");
+      setStatusMsg(error.response?.data?.message || "Failed to load bookings.");
+      // If unauthorized or forbidden, redirect to login
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        logout();
+        navigate("/login");
+      }
+    } finally {
+      setIsLoadingBookings(false);
+    }
+  }, [user, loadingAuth, logout, navigate, time24hrToIso]); // Dependencies for useCallback
+
+  const fetchBookedSlots = useCallback(async (date, room) => {
+    setIsLoadingSlots(true);
+    setSlotError(null);
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await axios.get(
+        `${API_URL}/api/booking/slots?date=${date}&room=${room}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      // The backend `getSlotRange` should return slots in the same format as your HOURS array (e.g., "8:00am")
+      setBookedSlots(res.data);
+    } catch (error) {
+      console.error("Failed to load booked time slots:", error);
+      setBookedSlots([]);
+      setSlotError("Failed to load booked time slots.");
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  }, []); // No dependencies for useCallback
+
+  useEffect(() => {
+    // Only fetch bookings once user and auth loading status are known
+    if (!loadingAuth && user?.email) {
+      fetchBookings();
+    } else if (!loadingAuth && !user) {
+      // If auth loading is done and no user, likely not logged in.
+      // Can show an empty state or redirect.
+      setIsLoadingBookings(false);
+    }
+  }, [loadingAuth, user, fetchBookings]); // Depend on loadingAuth, user, and the memoized fetchBookings
+
+  // --- Handlers ---
+
+  const handleCancel = useCallback(async (id) => {
+    setStatusMsg(""); // Clear previous status
+    try {
+      const token = localStorage.getItem("authToken");
+      await axios.post(
+        `${API_URL}/api/booking/cancel`,
+        { id, email: user.email },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setStatusType("success");
+      setStatusMsg("Booking cancelled successfully!");
+      fetchBookings(); // Re-fetch to update lists
+    } catch (error) {
+      console.error("Failed to cancel booking:", error);
+      setStatusType("error");
+      setStatusMsg(error.response?.data?.message || "Failed to cancel booking.");
+    }
+  }, [user, fetchBookings]); // Dependencies for useCallback
+
+  const handleEdit = useCallback((booking) => {
+    setNewStartTime(""); // Reset times
+    setNewEndTime("");
+    setStatusMsg(""); // Clear previous status messages
+    setStatusType("");
+
     // Check if the booking's end time has already passed
     const bookingEndDateTime = new Date(`${booking.date}T${time24hrToIso(booking.end_time)}`);
     const now = new Date();
+    if (isNaN(bookingEndDateTime.getTime())) {
+      setStatusType("error");
+      setStatusMsg("Invalid booking date/time. Cannot edit.");
+      return;
+    }
     if (bookingEndDateTime <= now) {
       setStatusType("error");
       setStatusMsg("Past bookings cannot be edited.");
@@ -194,76 +284,57 @@ export default function MyBookings() {
 
     // Always fetch booked slots for the chosen date and room when editing
     fetchBookedSlots(booking.date, booking.room);
-  };
+  }, [fetchBookedSlots, formatTimeForDisplay, time24hrToIso]); // Dependencies for useCallback
 
-  const isRangeBooked = (start, end, currentBookingId) => {
-    const startIndex = hours.indexOf(start);
-    const endIndex = hours.indexOf(end);
+  // isRangeBooked: Checks for conflicts with *all* other bookings for the same room and date
+  // (both the user's other bookings and general booked slots from backend)
+  const isRangeBooked = useCallback((start, end, currentBookingId) => {
+    const startIndex = HOURS.indexOf(start);
+    const endIndex = HOURS.indexOf(end);
 
+    // Basic validation: must select valid start/end, and end must be after start
     if (startIndex === -1 || endIndex === -1 || startIndex >= endIndex) {
-      return true; // Invalid range, consider it booked to prevent errors
+      return true; // Invalid range implies a conflict
     }
 
-    // Get all slots covered by the *new* requested range
-    const newRequestedSlots = hours.slice(startIndex, endIndex); // Exclusive end for slots
+    const newRequestedSlots = HOURS.slice(startIndex, endIndex); // Exclusive end for slots
 
-    // Now, iterate through ALL current user's bookings (except the one being edited)
-    // to check for conflicts, regardless of their status (pending/approved)
-    const conflictFound = bookings.some((booking) => {
-      // Exclude the current booking being edited
-      if (booking.id === currentBookingId) return false;
+    // 1. Check for conflicts with the current user's *other* bookings (excluding the one being edited)
+    const userConflict = bookings.some((booking) => {
+      if (booking.id === currentBookingId || booking.status === "cancelled") return false; // Ignore current and cancelled bookings
 
-      // Only check against bookings for the same room and date that are NOT cancelled
-      if (
-        booking.room !== selectedBooking.room ||
-        booking.date !== selectedBooking.date ||
-        booking.status === "cancelled"
-      ) {
-        return false;
+      if (booking.room !== selectedBooking?.room || booking.date !== selectedBooking?.date) {
+        return false; // Only check bookings for the same room and date
       }
 
-      // Convert backend 24-hour times to your `hours` array format for comparison
+      // Convert existing booking times to the same format as HOURS for comparison
       const existingBookingStart = formatTimeForDisplay(booking.time);
       const existingBookingEnd = formatTimeForDisplay(booking.end_time);
 
-      const existingStartIndex = hours.indexOf(existingBookingStart);
-      const existingEndIndex = hours.indexOf(existingBookingEnd);
+      const existingStartIndex = HOURS.indexOf(existingBookingStart);
+      const existingEndIndex = HOURS.indexOf(existingBookingEnd);
 
-      if (existingStartIndex === -1 || existingEndIndex === -1) {
-          console.warn("Invalid existing booking time format:", booking.time, booking.end_time);
-          return false; // Skip if existing booking times are malformed
+      if (existingStartIndex === -1 || existingEndIndex === -1 || existingStartIndex >= existingEndIndex) {
+        console.warn("Invalid existing booking time format, skipping conflict check for this booking:", booking);
+        return false; // Skip if existing booking times are malformed
       }
 
-      const existingOccupiedSlots = hours.slice(existingStartIndex, existingEndIndex);
+      const existingOccupiedSlots = HOURS.slice(existingStartIndex, existingEndIndex);
 
-      // Check if any slot in the new requested range overlaps with existing occupied slots
+      // Check for overlap: does any requested slot exist in existing occupied slots?
       return newRequestedSlots.some(slot => existingOccupiedSlots.includes(slot));
     });
 
-    // Additionally, check against the `bookedSlots` fetched from the backend,
-    // which represent all booked slots for that room and date (regardless of user).
-    // This is crucial for preventing conflicts with other users' bookings.
-    const conflictWithOtherBookings = newRequestedSlots.some(slot => bookedSlots.includes(slot));
+    // 2. Check for conflicts with *any* booked slots fetched from the backend (includes other users' bookings)
+    const generalConflict = newRequestedSlots.some(slot => bookedSlots.includes(slot));
 
-    return conflictFound || conflictWithOtherBookings;
-  };
+    return userConflict || generalConflict;
+  }, [bookings, selectedBooking, bookedSlots, formatTimeForDisplay]); // Dependencies for useCallback
 
+  const saveEdit = useCallback(async () => {
+    setStatusMsg(""); // Clear previous status
+    setStatusType("");
 
-  const timeToMinutes = (timeStr) => {
-    if (!timeStr) return 0;
-
-    // This helper now assumes the input `timeStr` is already in "H:MMam/pm" format
-    const timePart = timeStr.split(/(am|pm)/i)[0];
-    const period = timeStr.toLowerCase().includes("pm") ? "pm" : "am";
-
-    const [hours, minutes] = timePart.split(":").map(Number);
-    let total = hours * 60 + minutes;
-    if (period === "pm" && hours !== 12) total += 12 * 60;
-    if (period === "am" && hours === 12) total -= 12 * 60;
-    return total;
-  };
-
-  const saveEdit = () => {
     if (!newStartTime || !newEndTime) {
       setStatusType("error");
       setStatusMsg("Please select both start and end time.");
@@ -279,72 +350,59 @@ export default function MyBookings() {
       return;
     }
 
-    // Pass the actual booking object's date and room for backend check
-    const payload = {
-      id: editingId,
-      newTime: newStartTime, // Send in the format the backend expects (e.g., "8:00am")
-      newEndTime: newEndTime, // Send in the format the backend expects
-      date: selectedBooking.date, // Pass original booking date
-      room: selectedBooking.room, // Pass original booking room
-      userEmail: user.email, // Pass user email for backend validation
-    };
-
     // Frontend validation before sending to backend
     if (isRangeBooked(newStartTime, newEndTime, editingId)) {
       setStatusType("error");
-      setStatusMsg("Selected time slot conflicts with an existing booking.");
+      setStatusMsg("Selected time slot conflicts with an existing booking or is unavailable.");
       return;
     }
 
-    axios
-      .post(`${API_URL}/api/booking/edit`, payload)
-      .then(() => {
-        setStatusType("success");
-        setStatusMsg("Booking updated successfully! Pending Admin Approval.");
-        setEditingId(null);
-        setNewStartTime("");
-        setNewEndTime("");
-        setSelectedBooking(null); // Clear selected booking
-        fetchBookings(); // Re-fetch all bookings
-      })
-      .catch((error) => {
-        console.error("Failed to edit booking:", error);
-        setStatusType("error");
-        // Check if the error response has a specific message from backend
-        if (error.response && error.response.data && error.response.data.error) {
-            setStatusMsg(error.response.data.error);
-        } else {
-            setStatusMsg("Failed to edit booking. Please try again.");
-        }
+    const payload = {
+      id: editingId,
+      newTime: timeAmPmTo24hrISO(newStartTime), // Convert to 24-hour ISO format for backend
+      newEndTime: timeAmPmTo24hrISO(newEndTime), // Convert to 24-hour ISO format for backend
+      date: selectedBooking.date,
+      room: selectedBooking.room,
+      userEmail: user.email,
+    };
+
+    try {
+      const token = localStorage.getItem("authToken");
+      await axios.post(`${API_URL}/api/booking/edit`, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
-  };
+      setStatusType("success");
+      setStatusMsg("Booking updated successfully! Please note: new bookings might require Admin Approval.");
+      setEditingId(null);
+      setNewStartTime("");
+      setNewEndTime("");
+      setSelectedBooking(null);
+      fetchBookings(); // Re-fetch all bookings
+    } catch (error) {
+      console.error("Failed to edit booking:", error);
+      setStatusType("error");
+      setStatusMsg(error.response?.data?.error || "Failed to edit booking. Please try again.");
+    }
+  }, [newStartTime, newEndTime, editingId, selectedBooking, user, API_URL, timeToMinutes, isRangeBooked, timeAmPmTo24hrISO, fetchBookings]); // Dependencies for useCallback
 
-  const formatDate = (isoDate) => {
-    const date = new Date(isoDate);
-    // Ensure the date is interpreted as local time or explicitly convert
-    // For consistency, often best to parse as UTC and then display as local
-    const options = { weekday: "short", month: "short", day: "numeric" };
-    return date.toLocaleDateString("en-US", options);
-  };
 
-  // This function formats time from your 'hours' array (e.g., '8:00am') to display
-  const formatTime = (timeStr) => {
-    if (!timeStr) return "";
-    // Assuming timeStr is already in "H:MMam/pm" format from the `hours` array or `formatTimeForDisplay`
-    // Ensure consistent casing for AM/PM if needed, e.g., "8:00AM" vs "8:00am"
-    const [time, period] = timeStr.split(/(am|pm)/i);
-    return `${time}${period?.toUpperCase() || ''}`; // Ensure uppercase AM/PM
-  };
-
-  const handleLogout = () => {
-    setUser(null); // Clear user from context
-    localStorage.removeItem("authToken"); // Remove token if used
+  const handleLogout = useCallback(() => {
+    logout(); // Use the logout function from AuthContext
     navigate("/login");
-  };
+  }, [logout, navigate]); // Dependencies for useCallback
 
+  // --- Render Function ---
 
-  // Helper function to render booking cards
-  const renderBookingCards = (bookingsToRender) => {
+  const renderBookingCards = useCallback((bookingsToRender) => {
+    if (!bookingsToRender.length) {
+      return (
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
+          No bookings to display.
+        </div>
+      );
+    }
     return bookingsToRender.map((b) => (
       <motion.div
         key={b.id}
@@ -397,24 +455,26 @@ export default function MyBookings() {
                     }}
                   >
                     <option value="">Select start time</option>
-                    {hours.map((h) => {
+                    {HOURS.map((h) => {
                       // isDisabled checks if this hour slot (h) is part of a booked range *not* including the current booking
+                      // Or if it's already in the past relative to now (for the booking's date)
                       const isBooked = bookedSlots.includes(h);
                       const isCurrentStart = h === formatTimeForDisplay(b.time);
+
+                      // Check if this time slot is in the past for the booking's date
+                      const timeToCheck = new Date(`${b.date}T${timeAmPmTo24hrISO(h)}`);
+                      const isPast = timeToCheck <= new Date();
 
                       return (
                         <option
                           key={h}
                           value={h}
-                          disabled={isBooked && !isCurrentStart} // Disable if booked and not the current booking's start
-                          className={
-                            isBooked && !isCurrentStart
-                              ? "text-gray-400"
-                              : ""
-                          }
+                          disabled={(isBooked && !isCurrentStart) || isPast} // Disable if booked and not current, OR if in the past
+                          className={((isBooked && !isCurrentStart) || isPast) ? "text-gray-400" : ""}
                         >
-                          {formatTime(h)}
+                          {formatTimeForDisplay(h)}
                           {isBooked && !isCurrentStart && " (Booked)"}
+                          {isPast && " (Past)"}
                         </option>
                       );
                     })}
@@ -431,34 +491,41 @@ export default function MyBookings() {
                     disabled={!newStartTime}
                   >
                     <option value="">Select end time</option>
-                    {hours.map((h, index) => {
-                      const startTimeIndex = hours.indexOf(newStartTime);
+                    {HOURS.map((h, index) => {
+                      const startTimeIndex = HOURS.indexOf(newStartTime);
                       const isAfterStart = startTimeIndex !== -1 && index > startTimeIndex;
                       if (!isAfterStart) return null; // Only show times after the selected start time
 
                       const isCurrentEnd = h === formatTimeForDisplay(b.end_time);
 
                       // Check if the _entire range_ from newStartTime to h is available
-                      const potentialNewRange = hours.slice(startTimeIndex, index + 1); // +1 because slice end is exclusive
+                      const potentialNewRange = HOURS.slice(startTimeIndex, index); // End time itself is the start of the next slot
                       const isRangeAvailable = potentialNewRange.every(slot => {
-                          const isSlotBooked = bookedSlots.includes(slot);
-                          const isSlotCurrentBooking = (slot === formatTimeForDisplay(b.time) || slot === formatTimeForDisplay(b.end_time) || (timeToMinutes(slot) > timeToMinutes(formatTimeForDisplay(b.time)) && timeToMinutes(slot) < timeToMinutes(formatTimeForDisplay(b.end_time))));
-                          return !isSlotBooked || isSlotCurrentBooking;
+                        const isSlotBooked = bookedSlots.includes(slot);
+                        // Check if the slot is part of the original booking's duration
+                        const originalBookingStartIndex = HOURS.indexOf(formatTimeForDisplay(b.time));
+                        const originalBookingEndIndex = HOURS.indexOf(formatTimeForDisplay(b.end_time));
+                        const isSlotPartOfOriginalBooking = (
+                            HOURS.indexOf(slot) >= originalBookingStartIndex &&
+                            HOURS.indexOf(slot) < originalBookingEndIndex
+                        );
+                        return !isSlotBooked || isSlotPartOfOriginalBooking;
                       });
+
+                      // Check if this time slot is in the past for the booking's date
+                      const timeToCheck = new Date(`${b.date}T${timeAmPmTo24hrISO(h)}`);
+                      const isPast = timeToCheck <= new Date();
 
                       return (
                         <option
                           key={h}
                           value={h}
-                          disabled={!isRangeAvailable && !isCurrentEnd} // Disable if any part of the new range is unavailable AND it's not the current booking's end time
-                          className={
-                            (!isRangeAvailable && !isCurrentEnd)
-                              ? "text-gray-400"
-                              : ""
-                          }
+                          disabled={(!isRangeAvailable && !isCurrentEnd) || isPast} // Disable if any part of the new range is unavailable AND it's not the current booking's end time, OR if in the past
+                          className={((!isRangeAvailable && !isCurrentEnd) || isPast) ? "text-gray-400" : ""}
                         >
-                          {formatTime(h)}
+                          {formatTimeForDisplay(h)}
                           {(!isRangeAvailable && !isCurrentEnd) && " (Unavailable)"}
+                          {isPast && " (Past)"}
                         </option>
                       );
                     })}
@@ -467,7 +534,8 @@ export default function MyBookings() {
               </div>
 
               {isLoadingSlots && (
-                <div className="mt-2 text-sm text-gray-500">
+                <div className="mt-2 text-sm text-gray-500 flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500 mr-2"></div>
                   Loading available times...
                 </div>
               )}
@@ -497,11 +565,11 @@ export default function MyBookings() {
                 onClick={() => handleEdit(b)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
                   // Disable if approved OR if the booking's end time is in the past
-                  b.status === "approved" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date()
-                    ? "bg-gray-300 text-gray cursor-not-allowed"
+                  b.status === "approved" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date() || b.status === "cancelled"
+                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                     : "bg-blue-600 text-white hover:bg-blue-700"
                 } transition-colors`}
-                disabled={b.status === "approved" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date()}
+                disabled={b.status === "approved" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date() || b.status === "cancelled"}
               >
                 <FiEdit2 className="mr-2" />
                 Edit
@@ -509,11 +577,11 @@ export default function MyBookings() {
               <button
                 onClick={() => handleCancel(b.id)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center ${
-                  b.status === "cancelled"
-                    ? "bg-gray-300 cursor-not-allowed"
+                  b.status === "cancelled" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date()
+                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                     : "bg-red-600 hover:bg-red-700"
                 } transition-colors`}
-                disabled={b.status === "cancelled"}
+                disabled={b.status === "cancelled" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date()}
               >
                 <FiX className="mr-2" />
                 Cancel Booking
@@ -523,8 +591,9 @@ export default function MyBookings() {
         </div>
       </motion.div>
     ));
-  };
+  }, [editingId, newStartTime, newEndTime, bookedSlots, isLoadingSlots, slotError, saveEdit, handleEdit, handleCancel, formatDate, formatTimeForDisplay, timeAmPmTo24hrISO, time24hrToIso]); // Dependencies for useCallback
 
+  // --- Main Render ---
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
       {/* Sidebar */}
@@ -604,7 +673,12 @@ export default function MyBookings() {
           </motion.div>
         )}
 
-        {bookings.length === 0 ? (
+        {isLoadingBookings ? (
+          <div className="flex justify-center items-center h-48">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+            <p className="ml-3 text-gray-700">Loading your bookings...</p>
+          </div>
+        ) : (bookings.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center max-w-2xl mx-auto">
             <div className="mx-auto h-16 w-16 text-gray-400 mb-4">
               <FiCalendar className="w-full h-full" />
@@ -631,15 +705,7 @@ export default function MyBookings() {
                 <FiChevronRight className="text-green-600 mr-2" /> Upcoming
                 Bookings ({upcomingBookings.length})
               </h2>
-              {upcomingBookings.length > 0 ? (
-                <div className="space-y-4">
-                  {renderBookingCards(upcomingBookings)}
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
-                  No upcoming bookings.
-                </div>
-              )}
+              {renderBookingCards(upcomingBookings)}
             </div>
 
             {/* Past Bookings Section */}
@@ -648,18 +714,10 @@ export default function MyBookings() {
                 <FiChevronRight className="text-blue-600 mr-2" /> Past Bookings
                 ({pastBookings.length})
               </h2>
-              {pastBookings.length > 0 ? (
-                <div className="space-y-4">
-                  {renderBookingCards(pastBookings)}
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow-sm p-6 text-center text-gray-500">
-                  No past bookings.
-                </div>
-              )}
+              {renderBookingCards(pastBookings)}
             </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react"; // Added useCallback
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -11,7 +11,7 @@ import {
   FiChevronRight,
   FiClock,
   FiCheckCircle,
-  FiArrowRight,
+  // FiArrowRight, // Removed as it was unused
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
@@ -41,13 +41,11 @@ export default function DashboardUser() {
   const [error, setError] = useState("");
   const [nextMeeting, setNextMeeting] = useState(null);
 
-  const { user, login: setUser, logout, loadingAuth } = useAuth();
+  const { user, logout, loadingAuth } = useAuth(); // Removed setUser as it was unused
   const navigate = useNavigate();
 
-  // IMPORTANT: These helper functions must be defined INSIDE the DashboardUser component
-  // or passed as props if they were in a separate utility file.
   // Helper to format 24hr time from backend to am/pm for display
-  const formatTime = (time24) => {
+  const formatTime = useCallback((time24) => {
     if (!time24) return "";
     const [hourStr, minuteStr] = time24.split(":");
     let hour = parseInt(hourStr, 10);
@@ -55,33 +53,64 @@ export default function DashboardUser() {
     hour = hour % 12;
     hour = hour === 0 ? 12 : hour; // Convert 0 (midnight) to 12 AM
     return `${hour}:${minuteStr} ${ampm}`;
-  };
+  }, []); // No dependencies, so can be memoized
 
-  const formatDate = (dateStr) => {
+  const formatDate = useCallback((dateStr) => {
+    // Add a check to ensure dateStr is valid before creating Date object
+    if (!dateStr || isNaN(new Date(dateStr))) {
+        console.warn("Invalid date string for formatDate:", dateStr);
+        return "Invalid Date"; // Or handle as appropriate
+    }
     const options = { weekday: "short", month: "short", day: "numeric" };
     return new Date(dateStr).toLocaleDateString("en-US", options);
-  };
+  }, []); // No dependencies, so can be memoized
+
+
+  // Helper to ensure time string includes seconds for consistent Date parsing
+  // This helps prevent 'Invalid time value' if backend times are inconsistent (e.g., "HH:MM" vs "HH:MM:SS")
+  const ensureSeconds = useCallback((timeStr) => {
+    if (!timeStr) return "00:00:00"; // Default to a safe value
+    const parts = timeStr.split(':');
+    if (parts.length === 2) {
+      return `${timeStr}:00`; // Append seconds if missing
+    }
+    return timeStr; // Already has seconds or is malformed, Date() will handle it
+  }, []); // No dependencies, so can be memoized
+
 
   // Helper function to create Google Calendar event link
-  const createGoogleCalendarLink = (booking) => {
-    // Ensure `booking.date`, `booking.time`, and `booking.end_time` are available
+  const createGoogleCalendarLink = useCallback((booking) => {
     if (!booking || !booking.date || !booking.time || !booking.end_time) {
       console.error("Missing booking details for calendar link:", booking);
       return "#";
     }
 
+    // Use the helper to ensure consistent time format with seconds
+    const startTimeWithSeconds = ensureSeconds(booking.time);
+    const endTimeWithSeconds = ensureSeconds(booking.end_time);
+
     // Combine date and time for Date objects
-    // Using `T` to indicate time in ISO format for reliable parsing
-    const startDateTimeStr = `${booking.date}T${booking.time}`;
-    const endDateTimeStr = `${booking.date}T${booking.end_time}`;
+    const startDateTimeStr = `${booking.date}T${startTimeWithSeconds}`;
+    const endDateTimeStr = `${booking.date}T${endTimeWithSeconds}`;
 
     const startTime = new Date(startDateTimeStr);
     const endTime = new Date(endDateTimeStr);
 
+    // IMPORTANT: Check if Date objects are valid before calling .toISOString()
+    if (isNaN(startTime.getTime())) {
+      console.error("Invalid startTime Date object for GCal link:", { booking, startDateTimeStr });
+      return "#"; // Return a safe link to prevent error
+    }
+    if (isNaN(endTime.getTime())) {
+      console.error("Invalid endTime Date object for GCal link:", { booking, endDateTimeStr });
+      return "#"; // Return a safe link to prevent error
+    }
+
     // Google Calendar expects times in 'YYYYMMDDTHHMMSS' format (Zulu time if no timezone specified)
-    // We'll use UTC/Zulu time for consistency, assuming the backend times are relative to UTC
+    // We'll use UTC/Zulu time for consistency.
     const formatGCalTime = (date) => {
-      // Return format example: 20250623T080000Z (Z denotes Zulu/UTC time)
+      // .toISOString() will return something like "2025-06-23T08:00:00.000Z"
+      // We slice it to get "20250623T080000" and append "Z"
       return date.toISOString().replace(/-|:|\.\d{3}/g, "").slice(0, 15) + "Z";
     };
 
@@ -98,12 +127,18 @@ export default function DashboardUser() {
     )}/${formatGCalTime(
       endTime
     )}&details=${details}&location=${location}&sf=true&output=xml`;
-  };
+  }, [ensureSeconds, formatTime]); // Dependencies for useCallback
 
   // Helper for countdown (e.g., "Starts in 30 minutes")
-  const getCountdown = (booking) => {
-    if (!booking) return "";
+  const getCountdown = useCallback((booking) => {
+    if (!booking || !booking.date || !booking.time) return "";
+
     const bookingDateTime = new Date(`${booking.date}T${booking.time}`);
+    if (isNaN(bookingDateTime.getTime())) {
+        console.warn("Invalid booking date/time for countdown:", booking.date, booking.time);
+        return "";
+    }
+
     const now = new Date();
     const diffMs = bookingDateTime.getTime() - now.getTime();
 
@@ -120,78 +155,73 @@ export default function DashboardUser() {
     } else {
       return "Starting soon!";
     }
-  };
+  }, []); // No dependencies, so can be memoized
 
+
+  const fetchApprovedBookings = useCallback(async () => {
+    if (loadingAuth) {
+      return;
+    }
+    if (!user?.email) {
+      setLoading(false);
+      setError("User not logged in or email not available.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get(
+        `${API_URL}/api/booking/approved?userEmail=${user.email}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      setApprovedBookings(response.data);
+      setError("");
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err.response?.data?.message || "Failed to fetch approved bookings");
+    } finally {
+      setLoading(false);
+    }
+  }, [user, loadingAuth]); // Dependencies for useCallback
 
   useEffect(() => {
-    const fetchApprovedBookings = async () => {
-      if (loadingAuth) {
-        return;
-      }
-      if (!user?.email) {
-        setLoading(false);
-        setError("User not logged in or email not available.");
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('authToken'); // Make sure to get the token
-        const response = await axios.get(
-          `${API_URL}/api/booking/approved?userEmail=${user.email}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`, // Include the token for authenticated requests
-            },
-          }
-        );
-        setApprovedBookings(response.data);
-        setError("");
-      } catch (err) {
-        console.error("Fetch error:", err);
-        setError(err.response?.data?.message || "Failed to fetch approved bookings");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchApprovedBookings();
-  }, [user, loadingAuth]); // These dependencies are correct
+  }, [fetchApprovedBookings]); // Added fetchApprovedBookings as dependency
+
 
   useEffect(() => {
-    // Only run this effect if auth is done loading AND we have user data AND bookings are available
     if (!loadingAuth && user && approvedBookings.length > 0) {
       const now = new Date();
-      // Filter for future bookings only (relative to current time)
       const userUpcomingBookings = approvedBookings
         .filter((booking) => {
-          // It's important to use the current date in Kuala Lumpur if times are local
-          // For true accuracy with timezones, consider using a library like Luxon or Moment.js.
-          // For now, assuming backend times are UTC or relative to the client's current timezone if not specified.
           const bookingDateTime = new Date(`${booking.date}T${booking.time}`);
-          return bookingDateTime.getTime() > now.getTime(); // Compare timestamps
+          // Ensure the date object is valid before comparing
+          return !isNaN(bookingDateTime.getTime()) && bookingDateTime.getTime() > now.getTime();
         })
         .sort((a, b) => {
           const dateA = new Date(`${a.date}T${a.time}`);
           const dateB = new Date(`${b.date}T${b.time}`);
-          return dateA.getTime() - dateB.getTime(); // Sort by earliest time
+          // Ensure both date objects are valid before comparing
+          if (isNaN(dateA.getTime())) return 1; // Push invalid dates to the end
+          if (isNaN(dateB.getTime())) return -1; // Push invalid dates to the end
+          return dateA.getTime() - dateB.getTime();
         });
       setNextMeeting(userUpcomingBookings[0] || null);
     } else if (!loadingAuth && !user) {
-      // If auth is done and no user, there's no next meeting for them
       setNextMeeting(null);
-    } else {
-        // If still loading auth or no user/bookings yet, keep nextMeeting as null or previous state
-        // No explicit action needed here unless you want to reset it earlier.
     }
-  }, [user, approvedBookings, loadingAuth]); // Correct dependencies
+  }, [user, approvedBookings, loadingAuth]);
 
   const handleLogout = () => {
-    logout(); // Use the logout function from context
+    logout();
     navigate("/login");
   };
 
-  // --- Start of conditional rendering for loadingAuth ---
   if (loadingAuth) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -200,7 +230,6 @@ export default function DashboardUser() {
       </div>
     );
   }
-  // --- End of conditional rendering for loadingAuth ---
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
@@ -416,15 +445,18 @@ export default function DashboardUser() {
                         <FiCheckCircle className="mr-1" />
                         Approved
                       </div>
-                      <a
-                        href={createGoogleCalendarLink(booking)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors shadow-sm"
-                        title="Add to Google Calendar"
-                      >
-                        <FiCalendar className="mr-1" /> Add to Cal
-                      </a>
+                      {/* Check if createGoogleCalendarLink returns a valid link */}
+                      {createGoogleCalendarLink(booking) !== "#" && (
+                        <a
+                          href={createGoogleCalendarLink(booking)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors shadow-sm"
+                          title="Add to Google Calendar"
+                        >
+                          <FiCalendar className="mr-1" /> Add to Cal
+                        </a>
+                      )}
                     </div>
                   </div>
                 </motion.div>
