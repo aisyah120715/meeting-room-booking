@@ -32,10 +32,11 @@ export default function Login() {
     setIsLoading(true);
     
     try {
-      const res = await axios.post("${API_URL}/api/auth/login", {
+      const res = await axios.post(`${API_URL}/api/auth/login`, {
         identifier,
         password,
       });
+
 
       const { name, email, role } = res.data;
 

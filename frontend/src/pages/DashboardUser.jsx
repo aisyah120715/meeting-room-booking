@@ -27,7 +27,7 @@ export default function DashboardUser() {
   useEffect(() => {
     const fetchApprovedBookings = async () => {
       try {
-        const response = await axios.get("${API_URL}/api/booking/approved");
+        const response = await axios.get(`${API_URL}/api/booking/approved`);
         setApprovedBookings(response.data);
         setError("");
       } catch (err) {

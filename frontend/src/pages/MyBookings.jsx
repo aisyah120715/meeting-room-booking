@@ -60,7 +60,7 @@ export default function MyBookings() {
     setIsLoadingSlots(true);
     setSlotError(null);
     axios
-      .get(`http://localhost:5000/api/booking/slots?date=${date}&room=${room}`)
+      .get(`${API_URL}/api/booking/slots?date=${date}&room=${room}`)
       .then((res) => {
         const formattedSlots = res.data.map(slot => formatTimeForDisplay(slot));
         setBookedSlots(formattedSlots);
@@ -90,7 +90,7 @@ export default function MyBookings() {
 
   const handleCancel = (id) => {
     axios
-      .post("http://localhost:5000/api/booking/cancel", { id, email: user.email })
+      .post(`${API_URL}/api/booking/cancel`, { id, email: user.email })
       .then(() => {
         setStatusType("success");
         setStatusMsg("Booking cancelled successfully!");
@@ -186,7 +186,7 @@ export default function MyBookings() {
     };
 
     axios
-      .post("http://localhost:5000/api/booking/edit", payload)
+      .post(`${API_URL}/api/booking/edit`, payload)
       .then(() => {
         setStatusType("success");
         setStatusMsg("Booking updated successfully!");

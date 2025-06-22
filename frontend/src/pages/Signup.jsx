@@ -34,7 +34,7 @@ export default function Signup() {
     }
 
     try {
-      await axios.post("${API_URL}/api/auth/register", form);
+      await axios.post(`${API_URL}/api/auth/register`, form);
       alert("Registered successfully! You can now log in.");
       navigate("/login");
     } catch (err) {

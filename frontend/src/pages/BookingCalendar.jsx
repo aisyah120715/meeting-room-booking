@@ -104,7 +104,7 @@ export default function BookingCalendar() {
       userName: user?.name
     };
 
-    axios.post("${API_URL}/api/booking/create", payload)
+    axios.post(`${API_URL}/api/booking/create`, payload)
       .then(() => {
         setStatus("success");
         setConfirmationMsg("Booking confirmed! A confirmation email has been sent.");
