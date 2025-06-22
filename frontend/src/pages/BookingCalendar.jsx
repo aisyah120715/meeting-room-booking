@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
+
 export default function BookingCalendar() {
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -25,7 +26,7 @@ export default function BookingCalendar() {
   const [confirmationMsg, setConfirmationMsg] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const today = new Date().toISOString().split("T")[0];
@@ -192,42 +193,60 @@ export default function BookingCalendar() {
       .finally(() => setIsLoading(false));
   };
 
+ const handleLogout = () => {
+  logout()
+    .then(() => navigate("/login"))
+    .catch((err) => console.error("Logout error:", err));
+};
+
+
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
       {/* Sidebar */}
       <div className="w-64 bg-gradient-to-b from-green-700 to-green-600 shadow-xl hidden md:flex flex-col p-6 text-white">
-        <div className="flex items-center mb-10">
-          <FiBookOpen className="text-2xl mr-2" />
-          <h2 className="text-xl font-semibold">Meeting Scheduler</h2>
+         <div className="mb-10">
+          <h2 className="text-2xl font-bold mb-1">MeetingHub</h2>
+          <p className="text-green-100 text-sm">User Dashboard</p>
         </div>
-        <nav className="flex-1">
-          <Link
-            to="/dashboard"
-            className="flex items-center py-3 px-4 rounded-lg hover:bg-green-800 transition-colors mb-2"
+        
+        <nav className="flex-1 space-y-2">
+          <Link 
+            to="/dashboard-user" 
+            className="flex items-center p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all"
           >
-            <FiHome className="mr-3" />
-            Dashboard
+            <FiHome className="mr-3 text-lg" />
+            <span>Dashboard</span>
           </Link>
-          <Link
-            to="/bookings"
-            className="flex items-center py-3 px-4 rounded-lg bg-green-800 transition-colors mb-2"
+          <Link 
+            to="/my-bookings" 
+            className="flex items-center p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all"
           >
-            <FiCalendar className="mr-3" />
-            Book a Room
+            <FiBookOpen className="mr-3 text-lg" />
+            <span>My Bookings</span>
+          </Link>
+          <Link 
+            to="/calendar" 
+            className="flex items-center p-3 text-white bg-green-800 rounded-lg transition-all hover:bg-green-900"
+          >
+            <FiCalendar className="mr-3 text-lg" />
+            <span>New Booking</span>
           </Link>
         </nav>
-        <div className="mt-auto">
+        
+        <div className="mt-auto pt-4 border-t border-green-800">
+          <div className="px-4 py-3 bg-green-800 rounded-lg">
+            <p className="text-sm font-medium">{user?.name}</p>
+            <p className="text-xs text-green-200">{user?.email}</p>
+          </div>
           <button
-            onClick={() => {
-              // Handle logout
-              navigate("/login");
-            }}
-            className="flex items-center w-full py-3 px-4 rounded-lg hover:bg-green-800 transition-colors"
-          >
-            <FiLogOut className="mr-3" />
-            Logout
-          </button>
+              className="flex items-center w-full p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all mt-2"
+                onClick={handleLogout}
+           >
+                     <FiLogOut className="mr-3 text-lg" />
+                     <span>Logout</span>
+                   </button>
         </div>
+
       </div>
 
       {/* Main Content */}
