@@ -566,7 +566,7 @@ export default function MyBookings() {
                 className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center ${
                   // Disable if approved OR if the booking's end time is in the past
                   b.status === "approved" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date() || b.status === "cancelled"
-                    ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                    ? "bg-gray-300 text-gray cursor-not-allowed"
                     : "bg-blue-600 text-white hover:bg-blue-700"
                 } transition-colors`}
                 disabled={b.status === "approved" || new Date(`${b.date}T${time24hrToIso(b.end_time)}`) <= new Date() || b.status === "cancelled"}

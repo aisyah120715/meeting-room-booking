@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext"; // Make sure this path is correct
 import { motion } from "framer-motion";
 import { FiMail, FiLock } from "react-icons/fi";
 
@@ -9,66 +9,61 @@ export default function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(""); // New state for error messages
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  // Ensure that setUser is correctly destructured from useAuth.
+  // If useAuth returns { user: ..., login: ..., logout: ... }
+  // then setUser might not be directly available like this.
+  // We'll assume your AuthContext provides a `login` function.
+  const { login } = useAuth(); // Assuming useAuth provides a 'login' function
 
   // Check for saved credentials when component mounts
   useEffect(() => {
     const savedIdentifier = localStorage.getItem("rememberedIdentifier");
     const savedPassword = localStorage.getItem("rememberedPassword");
-    
+
     if (savedIdentifier && savedPassword) {
       setIdentifier(savedIdentifier);
       setPassword(savedPassword);
       setRememberMe(true);
     }
-  }, []);
+  }, []); // Empty dependency array means this runs once on mount
 
   const API_URL = process.env.REACT_APP_API_URL;
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // Prevent default form submission behavior
     setIsLoading(true);
-    
+    setErrorMessage(""); // Clear previous errors
+
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, {
-        identifier,
-        password,
-      });
+      // Use the login function from AuthContext
+      // This `login` function should handle the axios call,
+      // setting user in context, and storing the token.
+      const success = await login(identifier, password, rememberMe);
 
-
-      const { name, email, role } = res.data;
-
-      if (!email || !name || !role) {
-        throw new Error("Incomplete user data returned from backend.");
-      }
-
-      // Store user data in context
-      setUser({ name, email, role });
-
-      localStorage.setItem("userEmail", email);
-        localStorage.setItem("userName", name);
-        localStorage.setItem("userRole", role);
-
-      // Save credentials if "Remember Me" is checked
-      if (rememberMe) {
-        localStorage.setItem("rememberedIdentifier", identifier);
-        localStorage.setItem("rememberedPassword", password);
+      if (success) {
+        // The `login` function in AuthContext should handle navigation
+        // based on role after successful login and setting user data.
+        // So, we don't navigate here anymore.
+        // Example of what `login` might return or set:
+        // if (role === "admin") navigate("/dashboard-admin");
+        // else navigate("/dashboard-user");
+        // For now, let's assume `login` navigates internally
+        // or that the AuthContext will trigger navigation via its user state.
+        console.log("Login successful, navigation handled by AuthContext.");
       } else {
-        // Clear saved credentials if "Remember Me" is unchecked
-        localStorage.removeItem("rememberedIdentifier");
-        localStorage.removeItem("rememberedPassword");
+        // If login function returns false or throws an error, it's a login failure
+        setErrorMessage("Login failed. Please check your credentials.");
       }
 
-      // Redirect based on role
-      if (role === "admin") navigate("/dashboard-admin");
-      else navigate("/dashboard-user");
     } catch (err) {
       console.error("❌ Login Error:", err);
-      alert(err.response?.data?.error || "Login failed");
+      // Display the error message from the backend if available
+      setErrorMessage(err.response?.data?.error || "Login failed. An unexpected error occurred.");
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Always stop loading
     }
   };
 
@@ -86,7 +81,7 @@ export default function Login() {
             <p className="text-gray-600">Sign in to access your account</p>
           </div>
 
-          <form onSubmit={handleLogin}>
+          <form onSubmit={handleLogin}> {/* This is where onSubmit is called */}
             <div className="mb-5">
               <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 mb-1">
                 Email or Username
@@ -140,6 +135,16 @@ export default function Login() {
                 Remember me
               </label>
             </div>
+
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm text-center"
+              >
+                {errorMessage}
+              </motion.div>
+            )}
 
             <button
               type="submit"

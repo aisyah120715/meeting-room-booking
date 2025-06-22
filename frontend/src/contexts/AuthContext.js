@@ -1,100 +1,117 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate here
 
-const AuthContext = createContext();
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000'; // Ensure API_URL is defined
+const AuthContext = createContext(null);
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  const [error, setError] = useState(null); // Added error state
+  const [loadingAuth, setLoadingAuth] = useState(true); // Tracks if initial auth check is ongoing
+  const navigate = useNavigate(); // Get navigate from React Router
 
-  const login = useCallback(async (email, password) => {
+  const API_URL = process.env.REACT_APP_API_URL;
+
+  // Function to load user from localStorage
+  const loadUserFromLocalStorage = useCallback(() => {
     try {
-      setLoadingAuth(true); // Set loading true at the start of login
-      const response = await axios.post(`${API_URL}/api/auth/login`, { email, password });
-      const { token, user: userData } = response.data;
-      localStorage.setItem('authToken', token);
-      setUser(userData);
-      setError(null); // Clear any previous errors
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedName = localStorage.getItem('userName');
+      const storedRole = localStorage.getItem('userRole');
+      const authToken = localStorage.getItem('authToken'); // Assuming you store a token
+
+      if (authToken && storedEmail && storedName && storedRole) {
+        // Optionally, you might want to validate the token with your backend here
+        // For simplicity, we'll assume a token means valid session for now
+        setUser({ email: storedEmail, name: storedName, role: storedRole });
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error("Failed to load user from local storage:", error);
+      setUser(null);
+    } finally {
+      setLoadingAuth(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUserFromLocalStorage();
+  }, [loadUserFromLocalStorage]); // Run once on mount
+
+  // Login function to be exposed
+  const login = useCallback(async (identifier, password, rememberMe) => {
+    try {
+      const res = await axios.post(`${API_URL}/api/auth/login`, {
+        identifier,
+        password,
+      });
+
+      const { name, email, role, token } = res.data; // Assuming your backend sends a token
+
+      if (!email || !name || !role || !token) {
+        throw new Error("Incomplete user data or token returned from backend.");
+      }
+
+      // Store user data in context
+      setUser({ name, email, role });
+      // Store token (essential for authenticated requests)
+      localStorage.setItem("authToken", token);
+      localStorage.setItem("userEmail", email);
+      localStorage.setItem("userName", name);
+      localStorage.setItem("userRole", role);
+
+      // Save credentials if "Remember Me" is checked
+      if (rememberMe) {
+        localStorage.setItem("rememberedIdentifier", identifier);
+        localStorage.setItem("rememberedPassword", password);
+      } else {
+        // Clear saved credentials if "Remember Me" is unchecked
+        localStorage.removeItem("rememberedIdentifier");
+        localStorage.removeItem("rememberedPassword");
+      }
+
+      // Redirect based on role within the AuthContext
+      if (role === "admin") {
+        navigate("/dashboard-admin");
+      } else {
+        navigate("/dashboard-user");
+      }
+      return true; // Indicate successful login
     } catch (err) {
       console.error("Login failed:", err);
-      setError(err.response?.data?.message || "Login failed. Please check your credentials.");
-      throw err; // Re-throw to allow component to handle
-    } finally {
-      setLoadingAuth(false);
+      setUser(null); // Clear user on failed login
+      localStorage.clear(); // Clear all auth-related storage
+      throw err; // Re-throw for component to catch and display error
     }
-  }, []); // No dependencies for useCallback if it doesn't use outside state/props
+  }, [API_URL, navigate]); // Dependencies for useCallback
 
-  const register = useCallback(async (name, email, password) => {
-    try {
-      setLoadingAuth(true); // Set loading true at the start of register
-      const response = await axios.post(`${API_URL}/api/auth/register`, { name, email, password });
-      const { token, user: userData } = response.data;
-      localStorage.setItem('authToken', token);
-      setUser(userData);
-      setError(null); // Clear any previous errors
-    } catch (err) {
-      console.error("Registration failed:", err);
-      setError(err.response?.data?.message || "Registration failed.");
-      throw err;
-    } finally {
-      setLoadingAuth(false);
-    }
-  }, []); // No dependencies for useCallback
-
+  // Logout function to be exposed
   const logout = useCallback(() => {
-    localStorage.removeItem('authToken');
     setUser(null);
-    setError(null); // Clear errors on logout
-  }, []); // No dependencies for useCallback
+    localStorage.clear(); // Clear all user-related data including token
+    navigate("/login"); // Redirect to login page
+  }, [navigate]); // Dependencies for useCallback
 
-  // This useEffect fetches user data if a token exists
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      const token = localStorage.getItem('authToken');
-      if (token && !user) { // 'user' is correctly a dependency here
-        try {
-          setLoadingAuth(true);
-          const response = await axios.get(`${API_URL}/api/auth/me`, {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          });
-          setUser(response.data.user);
-          setError(null); // Clear any previous errors
-        } catch (err) {
-          console.error("Failed to fetch user data:", err);
-          localStorage.removeItem('authToken'); // Clear invalid token
-          setUser(null);
-          setError(err.response?.data?.message || "Session expired or invalid. Please log in again.");
-        } finally {
-          setLoadingAuth(false);
-        }
-      } else if (!token) {
-         setLoadingAuth(false); // If no token, finish loading immediately
-      }
-    };
-
-    checkAuthStatus();
-  }, [user]); // Add user to dependencies
-
-  const value = {
+  const authContextValue = {
     user,
     loadingAuth,
-    error, // Expose error state
-    login,
-    register,
-    logout,
+    login, // Expose the login function
+    logout, // Expose the logout function
+    // If you need direct setUser, you can expose it too:
+    // setUser,
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

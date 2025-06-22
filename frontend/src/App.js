@@ -11,8 +11,8 @@ import WelcomePage from "./pages/WelcomePage";
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter> {/* BrowserRouter should be outermost */}
+      <AuthProvider> {/* AuthProvider should be inside BrowserRouter */}
         <Routes>
           <Route path="/" element={<WelcomePage />} />
           <Route path="/login" element={<Login />} />
@@ -22,8 +22,8 @@ function App() {
           <Route path="/dashboard-user" element={<DashboardUser />} />
           <Route path="/dashboard-admin" element={<DashboardAdmin />} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
