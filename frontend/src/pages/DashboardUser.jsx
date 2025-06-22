@@ -11,13 +11,15 @@ import {
   FiChevronRight,
   FiClock,
   FiCheckCircle,
+  FiArrowRight,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useAuth } from "../contexts/AuthContext";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-// IMPORTANT: Move BookingCardSkeleton here, ABOVE the DashboardUser component
+// Optional: Create a separate skeleton component for better organization
+// This component should be defined OUTSIDE or ABOVE the main functional component
 const BookingCardSkeleton = () => (
   <div className="p-4 flex items-center animate-pulse bg-white border border-gray-100 rounded-lg shadow-sm mb-4">
     <div className="p-3 bg-gray-200 rounded-lg mr-4 h-9 w-9"></div>{" "}
@@ -42,7 +44,8 @@ export default function DashboardUser() {
   const { user, login: setUser, logout, loadingAuth } = useAuth();
   const navigate = useNavigate();
 
-  // IMPORTANT: Move these helper functions here, INSIDE or RIGHT ABOVE DashboardUser
+  // IMPORTANT: These helper functions must be defined INSIDE the DashboardUser component
+  // or passed as props if they were in a separate utility file.
   // Helper to format 24hr time from backend to am/pm for display
   const formatTime = (time24) => {
     if (!time24) return "";
@@ -133,8 +136,14 @@ export default function DashboardUser() {
 
       try {
         setLoading(true);
+        const token = localStorage.getItem('authToken'); // Make sure to get the token
         const response = await axios.get(
-          `${API_URL}/api/booking/approved?userEmail=${user.email}`
+          `${API_URL}/api/booking/approved?userEmail=${user.email}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`, // Include the token for authenticated requests
+            },
+          }
         );
         setApprovedBookings(response.data);
         setError("");
@@ -147,32 +156,42 @@ export default function DashboardUser() {
     };
 
     fetchApprovedBookings();
-  }, [user, loadingAuth]);
+  }, [user, loadingAuth]); // These dependencies are correct
 
   useEffect(() => {
+    // Only run this effect if auth is done loading AND we have user data AND bookings are available
     if (!loadingAuth && user && approvedBookings.length > 0) {
       const now = new Date();
+      // Filter for future bookings only (relative to current time)
       const userUpcomingBookings = approvedBookings
         .filter((booking) => {
+          // It's important to use the current date in Kuala Lumpur if times are local
+          // For true accuracy with timezones, consider using a library like Luxon or Moment.js.
+          // For now, assuming backend times are UTC or relative to the client's current timezone if not specified.
           const bookingDateTime = new Date(`${booking.date}T${booking.time}`);
-          return bookingDateTime > now;
+          return bookingDateTime.getTime() > now.getTime(); // Compare timestamps
         })
         .sort((a, b) => {
           const dateA = new Date(`${a.date}T${a.time}`);
           const dateB = new Date(`${b.date}T${b.time}`);
-          return dateA - dateB;
+          return dateA.getTime() - dateB.getTime(); // Sort by earliest time
         });
       setNextMeeting(userUpcomingBookings[0] || null);
     } else if (!loadingAuth && !user) {
+      // If auth is done and no user, there's no next meeting for them
       setNextMeeting(null);
+    } else {
+        // If still loading auth or no user/bookings yet, keep nextMeeting as null or previous state
+        // No explicit action needed here unless you want to reset it earlier.
     }
-  }, [user, approvedBookings, loadingAuth]);
+  }, [user, approvedBookings, loadingAuth]); // Correct dependencies
 
   const handleLogout = () => {
-    logout();
+    logout(); // Use the logout function from context
     navigate("/login");
   };
 
+  // --- Start of conditional rendering for loadingAuth ---
   if (loadingAuth) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -181,6 +200,7 @@ export default function DashboardUser() {
       </div>
     );
   }
+  // --- End of conditional rendering for loadingAuth ---
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
