@@ -16,16 +16,17 @@ import { useNavigate } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-
 export default function BookingCalendar() {
   const [selectedDate, setSelectedDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [room, setRoom] = useState("");
+  const [rooms, setRooms] = useState([]);
   const [bookedSlots, setBookedSlots] = useState([]);
   const [confirmationMsg, setConfirmationMsg] = useState("");
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -43,13 +44,33 @@ export default function BookingCalendar() {
     "4:00pm",
   ];
 
-  const rooms = [
-    "Meeting Room A",
-    "Meeting Room B",
-    "Meeting Room C",
-    "Meeting Room D",
-    "Meeting Room E",
-  ];
+  // Fetch rooms from database
+  useEffect(() => {
+      const fetchRooms = async () => {
+      try {
+        setIsLoadingRooms(true);
+        const response = await axios.get(`${API_URL}/api/booking/rooms`);
+        setRooms(response.data.map(room => room.name));
+      } catch (error) {
+        console.error("Error fetching rooms:", error);
+        setStatus("error");
+        setConfirmationMsg("Failed to load rooms. Please try again later.");
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
+
+    // Call this whenever you need to refresh rooms
+    // Example: Add a button to refresh rooms
+    <button 
+      onClick={fetchRooms}
+      className="text-sm text-green-600 hover:text-green-800"
+    >
+      Refresh Rooms
+    </button>
+
+    fetchRooms();
+  }, [API_URL]);
 
   // Helper function to convert time (e.g., "9:00am") to minutes from midnight
   const timeToMinutes = (timeStr) => {
@@ -193,18 +214,17 @@ export default function BookingCalendar() {
       .finally(() => setIsLoading(false));
   };
 
- const handleLogout = () => {
-  logout()
-    .then(() => navigate("/login"))
-    .catch((err) => console.error("Logout error:", err));
-};
-
+  const handleLogout = () => {
+    logout()
+      .then(() => navigate("/login"))
+      .catch((err) => console.error("Logout error:", err));
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
       {/* Sidebar */}
       <div className="w-64 bg-gradient-to-b from-green-700 to-green-600 shadow-xl hidden md:flex flex-col p-6 text-white">
-         <div className="mb-10">
+        <div className="mb-10">
           <h2 className="text-2xl font-bold mb-1">MeetingHub</h2>
           <p className="text-green-100 text-sm">User Dashboard</p>
         </div>
@@ -239,14 +259,13 @@ export default function BookingCalendar() {
             <p className="text-xs text-green-200">{user?.email}</p>
           </div>
           <button
-              className="flex items-center w-full p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all mt-2"
-                onClick={handleLogout}
-           >
-                     <FiLogOut className="mr-3 text-lg" />
-                     <span>Logout</span>
-                   </button>
+            className="flex items-center w-full p-3 text-green-100 hover:bg-green-800 rounded-lg transition-all mt-2"
+            onClick={handleLogout}
+          >
+            <FiLogOut className="mr-3 text-lg" />
+            <span>Logout</span>
+          </button>
         </div>
-
       </div>
 
       {/* Main Content */}
@@ -311,24 +330,28 @@ export default function BookingCalendar() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Meeting Room
               </label>
-              <select
-                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
-                value={room}
-                onChange={(e) => {
-                  setRoom(e.target.value);
-                  setStartTime("");
-                  setEndTime("");
-                  setConfirmationMsg("");
-                  setStatus("");
-                }}
-              >
-                <option value="">-- Select Room --</option>
-                {rooms.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+              {isLoadingRooms ? (
+                <div className="animate-pulse bg-gray-200 rounded-lg h-10 w-full"></div>
+              ) : (
+                <select
+                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
+                  value={room}
+                  onChange={(e) => {
+                    setRoom(e.target.value);
+                    setStartTime("");
+                    setEndTime("");
+                    setConfirmationMsg("");
+                    setStatus("");
+                  }}
+                >
+                  <option value="">-- Select Room --</option>
+                  {rooms.map((roomName) => (
+                    <option key={roomName} value={roomName}>
+                      {roomName}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

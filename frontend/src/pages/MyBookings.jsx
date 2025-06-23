@@ -91,7 +91,7 @@ export default function MyBookings() {
   // Format time for display (e.g., "8:00am")
   const formatTimeForDisplay = useCallback((timeStr) => {
     if (!timeStr) return "";
-    
+
     // Handle already formatted times
     if (timeStr.includes('am') || timeStr.includes('pm')) {
       return timeStr.toLowerCase().replace(/\s/g, '');
@@ -110,7 +110,7 @@ export default function MyBookings() {
     try {
       const date = new Date(isoDate);
       if (isNaN(date.getTime())) return "Invalid Date";
-      
+
       const options = { weekday: "short", month: "short", day: "numeric" };
       return date.toLocaleDateString("en-US", options);
     } catch (error) {
@@ -122,11 +122,11 @@ export default function MyBookings() {
   // Convert time string to minutes for comparison
   const timeToMinutes = useCallback((timeStr) => {
     if (!timeStr) return 0;
-    
+
     // Extract time and period
     const timePart = timeStr.split(/(am|pm)/i)[0];
     const period = timeStr.toLowerCase().includes('pm') ? 'pm' : 'am';
-    
+
     const [hours, minutes] = timePart.split(':').map(Number);
     let total = hours * 60 + minutes;
     if (period === 'pm' && hours !== 12) total += 12 * 60;
@@ -147,16 +147,16 @@ export default function MyBookings() {
   // Check if a time range is available
   const isTimeRangeAvailable = useCallback((startTime, endTime) => {
     if (!startTime || !endTime) return true;
-    
+
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-    
+
     if (startMinutes >= endMinutes) return false;
-    
+
     return !bookedSlots.some((booked) => {
       const bookedStart = timeToMinutes(booked.start);
       const bookedEnd = timeToMinutes(booked.end);
-      
+
       return (
         (startMinutes >= bookedStart && startMinutes < bookedEnd) ||
         (endMinutes > bookedStart && endMinutes <= bookedEnd) ||
@@ -171,25 +171,25 @@ export default function MyBookings() {
       setIsLoadingBookings(false);
       return;
     }
-    
+
     setIsLoadingBookings(true);
     setStatusMsg("");
     setStatusType("");
-    
+
     try {
       const token = localStorage.getItem("authToken");
       if (!token) {
         throw new Error("Authentication token not found");
       }
-      
+
       const response = await axios.get(
         `${API_URL}/api/booking/user-bookings?email=${user.email}`,
-        { 
+        {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000 // 10 second timeout
         }
       );
-      
+
       const allBookings = Array.isArray(response.data) ? response.data : [];
       const now = new Date();
       const todayMidnight = new Date(now);
@@ -208,7 +208,7 @@ export default function MyBookings() {
 
           const bookingDate = new Date(booking.date);
           bookingDate.setHours(0, 0, 0, 0);
-          
+
           if (isNaN(bookingDate.getTime())) {
             console.warn("Invalid booking date:", booking);
             past.push(booking);
@@ -223,7 +223,7 @@ export default function MyBookings() {
             // For today's bookings, check end time
             const bookingEndTime = timeToMinutes(formatTimeForDisplay(booking.end_time));
             const currentTime = now.getHours() * 60 + now.getMinutes();
-            
+
             if (bookingEndTime > currentTime) {
               upcoming.push(booking);
             } else {
@@ -265,10 +265,10 @@ export default function MyBookings() {
     } catch (error) {
       console.error("Failed to load bookings:", error);
       setStatusType("error");
-      setStatusMsg(error.response?.data?.message || 
-                  error.message || 
-                  "Failed to load bookings. Please try again.");
-      
+      setStatusMsg(error.response?.data?.message ||
+        error.message ||
+        "Failed to load bookings. Please try again.");
+
       if (error.response?.status === 401 || error.response?.status === 403) {
         logout();
         navigate("/login");
@@ -284,20 +284,20 @@ export default function MyBookings() {
       setSlotError("Invalid date or room provided");
       return;
     }
-    
+
     setIsLoadingSlots(true);
     setSlotError(null);
-    
+
     try {
       const token = localStorage.getItem("authToken");
       const res = await axios.get(
         `${API_URL}/api/booking/slots?date=${date}&room=${room}`,
-        { 
+        {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 5000
         }
       );
-      
+
       // Convert to formatted times
       const formattedSlots = res.data.map(slot => ({
         start: formatTimeForDisplay(slot.time),
@@ -308,8 +308,8 @@ export default function MyBookings() {
       console.error("Failed to load booked slots:", error);
       setBookedSlots([]);
       if (!ignoreError) {
-        setSlotError(error.response?.data?.message || 
-                   "Failed to load booked time slots. Please try again.");
+        setSlotError(error.response?.data?.message ||
+          "Failed to load booked time slots. Please try again.");
       }
     } finally {
       setIsLoadingSlots(false);
@@ -323,10 +323,10 @@ export default function MyBookings() {
       setStatusMsg("Invalid booking or user information");
       return;
     }
-    
+
     setStatusMsg("");
     setStatusType("");
-    
+
     // Add a confirmation dialog for permanent deletion
     if (!window.confirm("Are you sure you want to permanently delete this booking? This action cannot be undone.")) {
       return;
@@ -337,24 +337,24 @@ export default function MyBookings() {
       if (!token) {
         throw new Error("Authentication token not found");
       }
-      
+
       // Use a DELETE request to your backend endpoint
       await axios.delete(
         `${API_URL}/api/booking/${id}?email=${user.email}`, // Pass email as query param or in headers for verification
-        { 
+        {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
         }
       );
-      
+
       setStatusType("success");
       setStatusMsg("Booking deleted successfully!");
       await fetchBookings(); // Wait for refresh
     } catch (error) {
       console.error("Failed to delete booking:", error);
       setStatusType("error");
-      setStatusMsg(error.response?.data?.message || 
-                 "Failed to delete booking. Please try again.");
+      setStatusMsg(error.response?.data?.message ||
+        "Failed to delete booking. Please try again.");
     }
   }, [user, API_URL, fetchBookings]);
 
@@ -365,7 +365,7 @@ export default function MyBookings() {
       setStatusMsg("Approved bookings cannot be edited.");
       return;
     }
-    
+
     // You might still want to prevent editing of cancelled bookings if they're not deleted
     if (booking.status === 'cancelled') {
       setStatusType("error");
@@ -377,75 +377,75 @@ export default function MyBookings() {
     setNewStartTime(formatTimeForDisplay(booking.time));
     setNewEndTime(formatTimeForDisplay(booking.end_time));
     setSelectedBooking(booking);
-    
+
     fetchBookedSlots(booking.date, booking.room, true);
   }, [fetchBookedSlots, formatTimeForDisplay]);
 
-const saveEdit = useCallback(async () => {
-  if (!newStartTime || !newEndTime || !editingId || !selectedBooking) {
-    setStatusType("error");
-    setStatusMsg("Please select both start and end time.");
-    return;
-  }
-
-  const startMin = timeToMinutes(newStartTime);
-  const endMin = timeToMinutes(newEndTime);
-
-  if (startMin >= endMin) {
-    setStatusType("error");
-    setStatusMsg("End time must be after start time.");
-    return;
-  }
-
-  // Only validate against booked slots for pending bookings
-  if (selectedBooking?.status === 'pending') {
-    if (!isTimeRangeAvailable(newStartTime, newEndTime)) {
+  const saveEdit = useCallback(async () => {
+    if (!newStartTime || !newEndTime || !editingId || !selectedBooking) {
       setStatusType("error");
-      setStatusMsg("Selected time slot conflicts with an existing booking.");
+      setStatusMsg("Please select both start and end time.");
       return;
     }
-  }
 
-  try {
-    const token = localStorage.getItem("authToken");
-    if (!token) {
-      throw new Error("Authentication token not found");
+    const startMin = timeToMinutes(newStartTime);
+    const endMin = timeToMinutes(newEndTime);
+
+    if (startMin >= endMin) {
+      setStatusType("error");
+      setStatusMsg("End time must be after start time.");
+      return;
     }
 
-    const payload = {
-      id: editingId,
-      newTime: newStartTime, // Display format (e.g., "8:00am")
-      newEndTime: newEndTime, // Display format
-      email: user.email, // Changed from userEmail to email to match backend
-    };
+    // Only validate against booked slots for pending bookings
+    if (selectedBooking?.status === 'pending') {
+      if (!isTimeRangeAvailable(newStartTime, newEndTime)) {
+        setStatusType("error");
+        setStatusMsg("Selected time slot conflicts with an existing booking.");
+        return;
+      }
+    }
 
-    await axios.post(`${API_URL}/api/booking/edit`, payload, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 10000
-    });
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
 
-    setStatusType("success");
-    setStatusMsg("Booking updated successfully!");
-    setEditingId(null);
-    setNewStartTime("");
-    setNewEndTime("");
-    setSelectedBooking(null);
-    await fetchBookings(); // Wait for refresh
-  } catch (error) {
-    console.error("Failed to edit booking:", error);
-    setStatusType("error");
-    setStatusMsg(error.response?.data?.message || 
-               "Failed to edit booking. Please try again.");
-  }
-},  [
-    newStartTime, 
-    newEndTime, 
-    editingId, 
-    selectedBooking, 
-    user, 
-    API_URL, 
-    timeToMinutes, 
-    isTimeRangeAvailable, 
+      const payload = {
+        id: editingId,
+        newTime: newStartTime, // Display format (e.g., "8:00am")
+        newEndTime: newEndTime, // Display format
+        email: user.email, // Changed from userEmail to email to match backend
+      };
+
+      await axios.post(`${API_URL}/api/booking/edit`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
+      });
+
+      setStatusType("success");
+      setStatusMsg("Booking updated successfully!");
+      setEditingId(null);
+      setNewStartTime("");
+      setNewEndTime("");
+      setSelectedBooking(null);
+      await fetchBookings(); // Wait for refresh
+    } catch (error) {
+      console.error("Failed to edit booking:", error);
+      setStatusType("error");
+      setStatusMsg(error.response?.data?.message ||
+        "Failed to edit booking. Please try again.");
+    }
+  }, [
+    newStartTime,
+    newEndTime,
+    editingId,
+    selectedBooking,
+    user,
+    API_URL,
+    timeToMinutes,
+    isTimeRangeAvailable,
     fetchBookings
   ]);
 
@@ -500,8 +500,8 @@ const saveEdit = useCallback(async () => {
                   b.status === "approved"
                     ? "bg-green-100 text-green-800"
                     : b.status === "cancelled"
-                    ? "bg-red-100 text-red-800"
-                    : "bg-yellow-100 text-yellow-800"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-yellow-100 text-yellow-800"
                 }`}
               >
                 {b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Unknown"}
@@ -556,10 +556,10 @@ const saveEdit = useCallback(async () => {
                         const endMin = timeToMinutes(h);
                         const isAfterStart = endMin > startMin;
                         const isCurrentEnd = h === formatTimeForDisplay(b.end_time);
-                        const isAvailable = isAfterStart && 
-                          (selectedBooking?.status !== 'pending' || 
-                           isTimeRangeAvailable(newStartTime, h) ||
-                           isCurrentEnd);
+                        const isAvailable = isAfterStart &&
+                          (selectedBooking?.status !== 'pending' ||
+                            isTimeRangeAvailable(newStartTime, h) ||
+                            isCurrentEnd);
 
                         let disabledReason = "";
                         if (!isAfterStart) disabledReason = " (Before start)";
@@ -627,16 +627,17 @@ const saveEdit = useCallback(async () => {
                   } transition-colors`}
                   disabled={b.status === 'approved' || b.status === 'cancelled'}
                 >
+
                   <FiEdit2 className="mr-2" />
                   Edit
                 </button>
                 <button
-                  onClick={() => handleDeleteBooking(b.id)} // Changed to handleDeleteBooking
+                  onClick={() => handleDeleteBooking(b.id)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center bg-red-600 hover:bg-red-700 transition-colors`}
-                  // No need to disable if status is 'cancelled' if you're deleting it anyway
+
                 >
                   <FiX className="mr-2" />
-                  Delete Booking
+                  Cancel Booking
                 </button>
               </div>
             )}
@@ -652,7 +653,7 @@ const saveEdit = useCallback(async () => {
     slotError,
     saveEdit,
     handleEdit,
-    handleDeleteBooking, // Changed here
+    handleDeleteBooking,
     formatDate,
     formatTimeForDisplay,
     timeToMinutes,

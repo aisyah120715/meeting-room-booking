@@ -17,7 +17,6 @@ import { useAuth } from "../contexts/AuthContext";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-// Optional: Create a separate skeleton component for better organization
 const BookingCardSkeleton = () => (
   <div className="p-4 flex items-center animate-pulse bg-white border border-gray-100 rounded-lg shadow-sm mb-4">
     <div className="p-3 bg-gray-200 rounded-lg mr-4 h-9 w-9"></div>
@@ -30,14 +29,29 @@ const BookingCardSkeleton = () => (
 );
 
 export default function DashboardUser() {
-  const [approvedBookings, setApprovedBookings] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [upcomingBookings, setUpcomingBookings] = useState([]);
+  const [pastBookings, setPastBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [nextMeeting, setNextMeeting] = useState(null);
-  const [upcomingBookings, setUpcomingBookings] = useState([]);
 
   const { user, logout, loadingAuth } = useAuth();
   const navigate = useNavigate();
+
+  // Format time for display (e.g., "8:00am")
+  const formatTimeForDisplay = useCallback((timeStr) => {
+    if (!timeStr) return "";
+    
+    if (timeStr.includes('am') || timeStr.includes('pm')) {
+      return timeStr.toLowerCase().replace(/\s/g, '');
+    }
+
+    const [hours, minutes] = timeStr.split(':');
+    const hourNum = parseInt(hours, 10);
+    const period = hourNum >= 12 ? 'pm' : 'am';
+    const displayHour = hourNum % 12 === 0 ? 12 : hourNum % 12;
+    return `${displayHour}:${minutes}${period}`;
+  }, []);
 
   const formatTime = useCallback((time24) => {
     if (!time24) return "";
@@ -65,6 +79,20 @@ export default function DashboardUser() {
       return `${timeStr}:00`;
     }
     return timeStr;
+  }, []);
+
+  // Convert time string to minutes for comparison
+  const timeToMinutes = useCallback((timeStr) => {
+    if (!timeStr) return 0;
+    
+    const timePart = timeStr.split(/(am|pm)/i)[0];
+    const period = timeStr.toLowerCase().includes('pm') ? 'pm' : 'am';
+    
+    const [hours, minutes] = timePart.split(':').map(Number);
+    let total = hours * 60 + minutes;
+    if (period === 'pm' && hours !== 12) total += 12 * 60;
+    if (period === 'am' && hours === 12) total -= 12 * 60;
+    return total;
   }, []);
 
   const createGoogleCalendarLink = useCallback((booking) => {
@@ -147,60 +175,113 @@ export default function DashboardUser() {
     }
   }, [ensureSeconds]);
 
-  const fetchApprovedBookings = useCallback(async () => {
+  const fetchBookings = useCallback(async () => {
     if (loadingAuth || !user?.email) {
       setLoading(false);
       return;
     }
-
+    
     try {
       setLoading(true);
       setError("");
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem("authToken");
       if (!token) {
-        throw new Error("Authentication token not found.");
+        throw new Error("Authentication token not found");
       }
+      
       const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/api/booking/approved?userEmail=${user.email}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        `${API_URL}/api/booking/user-bookings?email=${user.email}`,
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000
         }
       );
-      setApprovedBookings(response.data);
+      
+      const allBookings = Array.isArray(response.data) ? response.data : [];
+      const now = new Date();
+      const todayMidnight = new Date(now);
+      todayMidnight.setHours(0, 0, 0, 0);
+
+      const upcoming = [];
+      const past = [];
+
+      allBookings.forEach((booking) => {
+        try {
+          if (!booking.date || !booking.time || !booking.end_time || booking.status !== 'approved') {
+            return;
+          }
+
+          const bookingDate = new Date(booking.date);
+          bookingDate.setHours(0, 0, 0, 0);
+          
+          if (isNaN(bookingDate.getTime())) {
+            console.warn("Invalid booking date:", booking);
+            past.push(booking);
+            return;
+          }
+
+          if (bookingDate > todayMidnight) {
+            upcoming.push(booking);
+          } else if (bookingDate < todayMidnight) {
+            past.push(booking);
+          } else {
+            const bookingEndTime = timeToMinutes(formatTimeForDisplay(booking.end_time));
+            const currentTime = now.getHours() * 60 + now.getMinutes();
+            
+            if (bookingEndTime > currentTime) {
+              upcoming.push(booking);
+            } else {
+              past.push(booking);
+            }
+          }
+        } catch (error) {
+          console.error("Error processing booking:", error, booking);
+        }
+      });
+
+      upcoming.sort((a, b) => {
+        try {
+          const dateA = new Date(`${a.date}T${a.time}`);
+          const dateB = new Date(`${b.date}T${b.time}`);
+          return dateA.getTime() - dateB.getTime();
+        } catch (error) {
+          console.error("Sorting error:", error);
+          return 0;
+        }
+      });
+
+      past.sort((a, b) => {
+        try {
+          const dateA = new Date(`${a.date}T${a.time}`);
+          const dateB = new Date(`${b.date}T${b.time}`);
+          return dateB.getTime() - dateA.getTime();
+        } catch (error) {
+          console.error("Sorting error:", error);
+          return 0;
+        }
+      });
+
+      setBookings(allBookings);
+      setUpcomingBookings(upcoming);
+      setPastBookings(past);
     } catch (err) {
-      console.error("Fetch error:", err);
-      setError(err.response?.data?.message || "Failed to fetch approved bookings.");
-      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+      console.error("Failed to load bookings:", err);
+      setError(err.response?.data?.message || 
+              err.message || 
+              "Failed to load bookings. Please try again.");
+      
+      if (err.response?.status === 401 || err.response?.status === 403) {
         logout();
         navigate("/login");
       }
     } finally {
       setLoading(false);
     }
-  }, [user, loadingAuth, logout, navigate]);
+  }, [user, loadingAuth, API_URL, logout, navigate, timeToMinutes, formatTimeForDisplay]);
 
   useEffect(() => {
-    fetchApprovedBookings();
-  }, [fetchApprovedBookings]);
-
-  useEffect(() => {
-  if (approvedBookings.length > 0) {
-    const now = new Date();
-    const upcoming = approvedBookings
-      .filter(booking => {
-        const bookingTime = new Date(`${booking.date}T${ensureSeconds(booking.time)}`);
-        return bookingTime > now;
-      })
-      .sort((a, b) => {
-        const timeA = new Date(`${a.date}T${ensureSeconds(a.time)}`);
-        const timeB = new Date(`${b.date}T${ensureSeconds(b.time)}`);
-        return timeA - timeB;
-      });
-    setUpcomingBookings(upcoming);
-  }
-}, [approvedBookings, ensureSeconds]);
+    fetchBookings();
+  }, [fetchBookings]);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -250,7 +331,6 @@ export default function DashboardUser() {
         </nav>
 
         <div className="mt-auto pt-4 border-t border-green-800">
-          {/* User Info Section */}
           <div className="flex items-center mb-4 p-3 bg-green-800 rounded-lg">
             <div className="p-2 bg-green-600 rounded-full mr-3">
               <FiUser className="text-white" />
@@ -282,9 +362,9 @@ export default function DashboardUser() {
           <p className="text-gray-600">Manage your meeting room bookings</p>
         </header>
 
-        {/* New Grid Layout for cards */}
+        {/* Dashboard Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 max-w-5xl mx-auto md:mx-0">
-          {/* My Bookings Card (left/top) */}
+          {/* My Bookings Card */}
           <motion.div
             whileHover={{ y: -3 }}
             className="bg-white p-6 rounded-xl shadow-md border border-gray-100"
@@ -308,7 +388,7 @@ export default function DashboardUser() {
             </Link>
           </motion.div>
 
-          {/* Availability Calendar Card (middle/bottom-left) */}
+          {/* Availability Calendar Card */}
           <motion.div
             whileHover={{ y: -3 }}
             className="bg-white p-6 rounded-xl shadow-md border border-gray-100"
@@ -332,66 +412,66 @@ export default function DashboardUser() {
             </Link>
           </motion.div>
 
-          // In your DashboardUser component, update the "Your Next Meeting" card section:
-<motion.div
-  className="bg-white rounded-xl shadow-md p-6 border border-gray-100 md:col-span-1 lg:col-span-1"
->
-  <div className="flex items-center mb-4">
-    <div className="p-3 bg-indigo-100 rounded-lg mr-4 text-indigo-600">
-      <FiCalendar className="text-xl" />
-    </div>
-    <h2 className="text-xl font-semibold text-gray-800">
-      Your Next Meeting
-    </h2>
-  </div>
-
-  {loading ? (
-    <div className="py-4 text-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
-      <p className="text-gray-500 mt-2">Loading next meeting...</p>
-    </div>
-  ) : upcomingBookings.length > 0 ? (
-    upcomingBookings.slice(0, 1).map((booking) => (
-      <div key={booking.id}>
-        <p className="text-gray-700 text-lg font-medium mb-1">
-          {booking.room} - {formatDate(booking.date)}
-        </p>
-        <p className="text-gray-600 text-md mb-2">
-          <FiClock className="inline-block mr-1 text-gray-500" />
-          {formatTime(booking.time)} - {formatTime(booking.end_time)}
-        </p>
-        <p className="text-sm text-indigo-700 font-semibold">
-          {getCountdown(booking)}
-        </p>
-        <div className="mt-4">
-          <a
-            href={createGoogleCalendarLink(booking)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          {/* Next Meeting Card */}
+          <motion.div
+            className="bg-white rounded-xl shadow-md p-6 border border-gray-100 md:col-span-1 lg:col-span-1"
           >
-            <FiCalendar className="mr-2" /> Add to Google Calendar
-          </a>
-        </div>
-      </div>
-    ))
-  ) : (
-    <div className="text-center py-4">
-      <p className="text-gray-500 mb-4">
-        No upcoming meetings scheduled for you.
-      </p>
-      <Link
-        to="/calendar"
-        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-      >
-        <FiPlus className="mr-2" /> Book one now!
-      </Link>
-    </div>
-  )}
-</motion.div>
+            <div className="flex items-center mb-4">
+              <div className="p-3 bg-indigo-100 rounded-lg mr-4 text-indigo-600">
+                <FiCalendar className="text-xl" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800">
+                Your Next Meeting
+              </h2>
+            </div>
+
+            {loading ? (
+              <div className="py-4 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+                <p className="text-gray-500 mt-2">Loading next meeting...</p>
+              </div>
+            ) : upcomingBookings.length > 0 ? (
+              upcomingBookings.slice(0, 1).map((booking) => (
+                <div key={booking.id}>
+                  <p className="text-gray-700 text-lg font-medium mb-1">
+                    {booking.room} - {formatDate(booking.date)}
+                  </p>
+                  <p className="text-gray-600 text-md mb-2">
+                    <FiClock className="inline-block mr-1 text-gray-500" />
+                    {formatTime(booking.time)} - {formatTime(booking.end_time)}
+                  </p>
+                  <p className="text-sm text-indigo-700 font-semibold">
+                    {getCountdown(booking)}
+                  </p>
+                  <div className="mt-4">
+                    <a
+                      href={createGoogleCalendarLink(booking)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+                    >
+                      <FiCalendar className="mr-2" /> Add to Google Calendar
+                    </a>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-gray-500 mb-4">
+                  No upcoming meetings scheduled for you.
+                </p>
+                <Link
+                  to="/calendar"
+                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                >
+                  <FiPlus className="mr-2" /> Book one now!
+                </Link>
+              </div>
+            )}
+          </motion.div>
         </div>
 
-        {/* All Approved Bookings Section (User Specific) - Below the new grid */}
+        {/* All Approved Bookings Section */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8 max-w-4xl mx-auto md:mx-0">
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-semibold text-gray-800">
@@ -410,54 +490,54 @@ export default function DashboardUser() {
             </div>
           ) : error ? (
             <div className="p-6 text-center text-red-500">{error}</div>
-          ) : approvedBookings.length === 0 ? (
+          ) : bookings.filter(b => b.status === 'approved').length === 0 ? (
             <div className="p-6 text-center text-gray-500">
               No approved bookings found for your account.
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {approvedBookings.map((booking) => (
-                <motion.div
-                  key={booking.id}
-                  whileHover={{ backgroundColor: "#f9fafb" }}
-                  className="p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="p-3 bg-blue-50 rounded-lg mr-4 text-blue-600">
-                        <FiClock />
+              {bookings
+                .filter(b => b.status === 'approved')
+                .map((booking) => (
+                  <motion.div
+                    key={booking.id}
+                    whileHover={{ backgroundColor: "#f9fafb" }}
+                    className="p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="p-3 bg-blue-50 rounded-lg mr-4 text-blue-600">
+                          <FiClock />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-gray-800">
+                            {booking.room}
+                          </h3>
+                          <p className="text-gray-500 text-sm">
+                            {formatDate(booking.date)} •{" "}
+                            {formatTime(booking.time)} - {formatTime(booking.end_time)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-medium text-gray-800">
-                          {booking.room}
-                        </h3>
-                        <p className="text-gray-500 text-sm">
-                          {formatDate(booking.date)} •{" "}
-                          {formatTime(booking.time)} -{" "}
-                          {formatTime(booking.end_time)}
-                        </p>
+                      <div className="flex items-center">
+                        <div className="flex items-center text-sm text-green-600 mr-3">
+                          <FiCheckCircle className="mr-1" />
+                          Approved
+                        </div>
+                        {createGoogleCalendarLink(booking) !== "#" && (
+                          <a
+                            href={createGoogleCalendarLink(booking)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors shadow-sm"
+                          >
+                            <FiCalendar className="mr-1" /> Add to Cal
+                          </a>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center">
-                      <div className="flex items-center text-sm text-green-600 mr-3">
-                        <FiCheckCircle className="mr-1" />
-                        Approved
-                      </div>
-                      {createGoogleCalendarLink(booking) !== "#" && (
-                        <a
-                          href={createGoogleCalendarLink(booking)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors shadow-sm"
-                          title="Add to Google Calendar"
-                        >
-                          <FiCalendar className="mr-1" /> Add to Cal
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
             </div>
           )}
         </div>
