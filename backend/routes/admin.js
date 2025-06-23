@@ -10,12 +10,18 @@ router.get("/bookings", (req, res) => {
   });
 });
 
-// Update booking status
 router.post('/update-status', (req, res) => {
   const { id, status } = req.body;
 
+  // Validate inputs
   if (!id || !status) {
     return res.status(400).json({ error: "Missing booking ID or status" });
+  }
+
+  // Validate status value
+  const allowedStatuses = ['pending', 'approved', 'rejected'];
+  if (!allowedStatuses.includes(status)) {
+    return res.status(400).json({ error: "Invalid status value" });
   }
 
   const query = `UPDATE bookings SET status = ? WHERE id = ?`;
@@ -24,10 +30,14 @@ router.post('/update-status', (req, res) => {
       console.error("MySQL update error:", err);
       return res.status(500).json({ error: "Failed to update booking status" });
     }
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+    
     res.json({ message: "Status updated successfully" });
   });
 });
-
 
 // Summary: count bookings per day
 router.get("/summary", (req, res) => {

@@ -70,15 +70,18 @@ export default function DashboardAdmin() {
   };
 
   const updateStatus = async (id, status) => {
-    try {
-      await axios.post(`${API_BASE}/update-status`, { id, status });
-      setMsg(`✅ Booking ${status}`);
-      await fetchAllData();
-    } catch (err) {
-      console.error("Update error:", err);
-      setMsg("❌ Action failed");
-    }
-  };
+  try {
+    console.log(`Updating booking ${id} to status: ${status}`); // Add this
+    await axios.post(`${API_BASE}/update-status`, { 
+      id, 
+      status: status.toLowerCase() // Ensure lowercase
+    });
+    // ... rest of your code
+  } catch (err) {
+    console.error("Update error:", err);
+    setMsg("❌ Action failed");
+  }
+};
 
   const formatDate = (dateStr) => {
     try {

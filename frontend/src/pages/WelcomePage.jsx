@@ -20,7 +20,7 @@ export default function WelcomePage() {
           transition={{ delay: 0.3, duration: 0.8 }}
           className="text-xl md:text-2xl mb-10 max-w-2xl leading-relaxed"
         >
-          Effortlessly manage meeting rooms, lab equipment, and study pods with our intuitive booking platform.
+          Effortlessly manage meeting rooms with our intuitive booking platform.
         </motion.p>
         
         <motion.div 
