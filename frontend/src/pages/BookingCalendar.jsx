@@ -10,6 +10,14 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiPlus,
+  FiUsers,
+  FiMapPin,
+  FiWifi,
+  FiMonitor,
+  FiVideo,
+  FiMic,
+  FiClock,
+  FiChevronDown
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -32,59 +40,52 @@ export default function BookingCalendar() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const hours = [
-    "8:00am",
-    "9:00am",
-    "10:00am",
-    "11:00am",
-    "12:00pm",
-    "1:00pm",
-    "2:00pm",
-    "3:00pm",
-    "4:00pm",
-  ];
+  // Generate hours from 8am to 8pm
+  const hours = Array.from({ length: 13 }, (_, i) => {
+    const hour = i + 8;
+    const period = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:00${period}`;
+  });
 
- // Fetch rooms from database
-useEffect(() => {
-  const fetchRooms = async () => {
-    try {
-      setIsLoadingRooms(true);
-      const response = await axios.get(`${API_URL}/api/booking/rooms`);
-      
-      console.log("Rooms API response:", response.data);
-      
-      if (Array.isArray(response.data)) {
-        // Extract room names - now we know the property is definitely 'name'
-        const roomNames = response.data.map(room => room.name).filter(Boolean);
+  // Fetch rooms from database
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setIsLoadingRooms(true);
+        const response = await axios.get(`${API_URL}/api/booking/rooms`);
         
-        if (roomNames.length > 0) {
-          setRooms(roomNames);
+        if (Array.isArray(response.data)) {
+          const activeRooms = response.data.filter(room => room.is_active);
+          
+          if (activeRooms.length > 0) {
+            setRooms(activeRooms);
+          } else {
+            console.error("No active rooms found:", response.data);
+            setStatus("error");
+            setConfirmationMsg("No rooms currently available. Please check back later.");
+          }
         } else {
-          console.error("No rooms found in response:", response.data);
+          console.error("Unexpected rooms data format:", response.data);
           setStatus("error");
-          setConfirmationMsg("No rooms available. Please contact support.");
+          setConfirmationMsg("Failed to load rooms. Invalid data format.");
         }
-      } else {
-        console.error("Unexpected rooms data format:", response.data);
+      } catch (error) {
+        console.error("Error fetching rooms:", error);
         setStatus("error");
-        setConfirmationMsg("Failed to load rooms. Invalid data format.");
+        setConfirmationMsg(
+          error.response?.data?.message || 
+          "Failed to load rooms. Please try again later."
+        );
+      } finally {
+        setIsLoadingRooms(false);
       }
-    } catch (error) {
-      console.error("Error fetching rooms:", error);
-      setStatus("error");
-      setConfirmationMsg(
-        error.response?.data?.message || 
-        "Failed to load rooms. Please try again later."
-      );
-    } finally {
-      setIsLoadingRooms(false);
-    }
-  };
+    };
 
-  fetchRooms();
-}, [API_URL]);
+    fetchRooms();
+  }, []);
 
-  // Helper function to convert time (e.g., "9:00am") to minutes from midnight
+  // Helper function to convert time to minutes from midnight
   const timeToMinutes = (timeStr) => {
     if (!timeStr) return 0;
     const [time, period] = timeStr.replace(/:\d+/, "").split(/(am|pm)/i);
@@ -150,7 +151,7 @@ useEffect(() => {
     if (!time24) return "";
     const [hourStr, minuteStr] = time24.split(":");
     let hour = parseInt(hourStr, 10);
-    const ampm = hour >= 12 ? "pm" : "am";
+    const ampm = hour >= 12 ? 'pm' : 'am';
     hour = hour % 12;
     hour = hour === 0 ? 12 : hour;
     return `${hour}:${minuteStr}${ampm}`;
@@ -160,7 +161,7 @@ useEffect(() => {
   const formatTime = (timeStr) => {
     if (!timeStr) return "";
     const [time, period] = timeStr.split(/(am|pm)/i);
-    return `${time.trim()}${period ? period.toUpperCase() : ""}`;
+    return `${time.trim()}${period ? period.toLowerCase() : ""}`;
   };
 
   const confirmBooking = () => {
@@ -232,6 +233,49 @@ useEffect(() => {
       .catch((err) => console.error("Logout error:", err));
   };
 
+  // Helper to get amenity icon
+  const getAmenityIcon = (amenity) => {
+    switch(amenity.toLowerCase()) {
+      case 'projector':
+        return <FiMonitor className="mr-1" />;
+      case 'whiteboard':
+        return <FiBookOpen className="mr-1" />;
+      case 'video conferencing':
+        return <FiVideo className="mr-1" />;
+      case 'sound system':
+        return <FiMic className="mr-1" />;
+      case 'wifi':
+        return <FiWifi className="mr-1" />;
+      default:
+        return <FiPlus className="mr-1" />;
+    }
+  };
+
+  // Enhanced room amenities display
+  const renderAmenities = (amenities) => {
+    if (!amenities) return null;
+    
+    const amenitiesArray = Array.isArray(amenities)
+      ? amenities
+      : typeof amenities === 'string'
+      ? amenities.split(',')
+      : [];
+      
+    return (
+      <div className="mt-3 flex flex-wrap gap-1">
+        {amenitiesArray.map((amenity, index) => (
+          <span 
+            key={index} 
+            className="inline-flex items-center text-xs bg-gray-100 rounded-full px-2 py-1 text-gray-600"
+          >
+            {getAmenityIcon(amenity.trim())}
+            {amenity.trim()}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50 font-poppins">
       {/* Sidebar */}
@@ -283,11 +327,11 @@ useEffect(() => {
       {/* Main Content */}
       <div className="flex-1 p-6">
         <header className="bg-white shadow-sm p-6 mb-6 rounded-lg">
-          <h1 className="text-2xl font-bold text-gray-800">
-            <FiCalendar className="inline-block mr-2" />
+          <h1 className="text-2xl font-bold text-gray-800 flex items-center">
+            <FiCalendar className="mr-2" />
             Book a Meeting Room
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mt-1">
             Select a date, time, and room for your meeting
           </p>
         </header>
@@ -313,122 +357,180 @@ useEffect(() => {
           </motion.div>
         )}
 
+        {/* Room Cards Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-xl shadow-sm p-6 mb-6"
+        >
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">Available Meeting Rooms</h2>
+          
+          {isLoadingRooms ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse bg-gray-200 rounded-lg h-40"></div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {rooms.map((roomItem) => (
+                <div 
+                  key={roomItem.id} 
+                  className={`border rounded-lg p-4 transition-all cursor-pointer hover:shadow-md ${
+                    room === roomItem.name 
+                      ? "border-green-500 bg-green-50 ring-1 ring-green-500" 
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  onClick={() => setRoom(roomItem.name)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-medium text-lg text-gray-800">{roomItem.name}</h3>
+                      <p className="text-sm text-gray-500 mt-1">{roomItem.description}</p>
+                    </div>
+                    <span className="flex items-center text-sm bg-gray-100 rounded-full px-2 py-1">
+                      <FiUsers className="mr-1" /> {roomItem.capacity}
+                    </span>
+                  </div>
+                  
+                  {renderAmenities(roomItem.amenities)}
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Booking Form */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-xl shadow-sm p-6 max-w-2xl mx-auto"
         >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Select a Date
-              </label>
-              <input
-                type="date"
-                min={today}
-                value={selectedDate}
-                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setStartTime("");
-                  setEndTime("");
-                  setConfirmationMsg("");
-                  setStatus("");
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Meeting Room
-              </label>
-              {isLoadingRooms ? (
-                <div className="animate-pulse bg-gray-200 rounded-lg h-10 w-full"></div>
-              ) : (
-                <select
-                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
-                  value={room}
-                  onChange={(e) => {
-                    setRoom(e.target.value);
-                    setStartTime("");
-                    setEndTime("");
-                    setConfirmationMsg("");
-                    setStatus("");
-                  }}
-                >
-                  <option value="">-- Select Room --</option>
-                  {rooms.map((roomName) => (
-                    <option key={roomName} value={roomName}>
-                      {roomName}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Time
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Date
                 </label>
-                <select
-                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
-                  value={startTime}
-                  onChange={(e) => {
-                    setStartTime(e.target.value);
-                    setEndTime("");
-                  }}
-                  disabled={!selectedDate || !room || isLoading}
-                >
-                  <option value="">-- Select --</option>
-                  {hours.map((h) => {
-                    const isBooked = isTimeSlotBooked(h);
-                    return (
-                      <option
-                        key={h}
-                        value={h}
-                        disabled={isBooked}
-                        className={isBooked ? "text-gray-400" : ""}
-                      >
-                        {formatTime(h)}{isBooked ? " (Booked)" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="relative">
+                  <input
+                    type="date"
+                    min={today}
+                    value={selectedDate}
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2.5 border"
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      setStartTime("");
+                      setEndTime("");
+                      setConfirmationMsg("");
+                      setStatus("");
+                    }}
+                  />
+                  <FiCalendar className="absolute right-3 top-3.5 text-gray-400" />
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Meeting Room
+                </label>
+                {isLoadingRooms ? (
+                  <div className="animate-pulse bg-gray-200 rounded-lg h-12 w-full"></div>
+                ) : (
+                  <div className="relative">
+                    <select
+                      className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2.5 border appearance-none"
+                      value={room}
+                      onChange={(e) => {
+                        setRoom(e.target.value);
+                        setStartTime("");
+                        setEndTime("");
+                        setConfirmationMsg("");
+                        setStatus("");
+                      }}
+                    >
+                      <option value="">-- Select Room --</option>
+                      {rooms.map((roomItem) => (
+                        <option key={roomItem.id} value={roomItem.name}>
+                          {roomItem.name} ({roomItem.capacity} people)
+                        </option>
+                      ))}
+                    </select>
+                    <FiChevronDown className="absolute right-3 top-3.5 text-gray-400" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Time
+                </label>
+                <div className="relative">
+                  <select
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2.5 border appearance-none"
+                    value={startTime}
+                    onChange={(e) => {
+                      setStartTime(e.target.value);
+                      setEndTime("");
+                    }}
+                    disabled={!selectedDate || !room || isLoading}
+                  >
+                    <option value="">-- Select --</option>
+                    {hours.map((h) => {
+                      const isBooked = isTimeSlotBooked(h);
+                      return (
+                        <option
+                          key={h}
+                          value={h}
+                          disabled={isBooked}
+                          className={isBooked ? "text-gray-400" : ""}
+                        >
+                          {formatTime(h)}{isBooked ? " (Booked)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <FiClock className="absolute right-3 top-3.5 text-gray-400" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   End Time
                 </label>
-                <select
-                  className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  disabled={!startTime || isLoading}
-                >
-                  <option value="">-- Select --</option>
-                  {hours.map((h) => {
-                    const isAfterStart = startTime && timeToMinutes(h) > timeToMinutes(startTime);
-                    const isAvailable = isAfterStart && isTimeRangeAvailable(startTime, h);
-                    
-                    return (
-                      <option
-                        key={h}
-                        value={h}
-                        disabled={!isAvailable}
-                        className={!isAvailable ? "text-gray-400" : ""}
-                      >
-                        {formatTime(h)}{!isAfterStart ? " (Before start)" : !isAvailable ? " (Unavailable)" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="relative">
+                  <select
+                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2.5 border appearance-none"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    disabled={!startTime || isLoading}
+                  >
+                    <option value="">-- Select --</option>
+                    {hours.map((h) => {
+                      const isAfterStart = startTime && timeToMinutes(h) > timeToMinutes(startTime);
+                      const isAvailable = isAfterStart && isTimeRangeAvailable(startTime, h);
+                      
+                      return (
+                        <option
+                          key={h}
+                          value={h}
+                          disabled={!isAvailable}
+                          className={!isAvailable ? "text-gray-400" : ""}
+                        >
+                          {formatTime(h)}{!isAfterStart ? " (Before start)" : !isAvailable ? " (Unavailable)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <FiClock className="absolute right-3 top-3.5 text-gray-400" />
+                </div>
               </div>
             </div>
 
             <button
-              className={`w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg shadow-sm font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 mt-4 ${
+              className={`w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg shadow-sm font-medium transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 mt-2 flex items-center justify-center ${
                 isLoading ? "opacity-70 cursor-not-allowed" : ""
               }`}
               onClick={confirmBooking}
@@ -438,7 +540,7 @@ useEffect(() => {
                 "Processing..."
               ) : (
                 <>
-                  <FiPlus className="inline-block mr-2" />
+                  <FiPlus className="mr-2" />
                   Confirm Booking
                 </>
               )}
