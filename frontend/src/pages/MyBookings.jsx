@@ -316,8 +316,8 @@ export default function MyBookings() {
     }
   }, [API_URL, formatTimeForDisplay]);
 
-  // Cancel a booking with improved error handling
-  const handleCancel = useCallback(async (id) => {
+  // Handle permanent deletion of a booking
+  const handleDeleteBooking = useCallback(async (id) => {
     if (!id || !user?.email) {
       setStatusType("error");
       setStatusMsg("Invalid booking or user information");
@@ -327,15 +327,20 @@ export default function MyBookings() {
     setStatusMsg("");
     setStatusType("");
     
+    // Add a confirmation dialog for permanent deletion
+    if (!window.confirm("Are you sure you want to permanently delete this booking? This action cannot be undone.")) {
+      return;
+    }
+
     try {
       const token = localStorage.getItem("authToken");
       if (!token) {
         throw new Error("Authentication token not found");
       }
       
-      await axios.post(
-        `${API_URL}/api/booking/cancel`,
-        { id, email: user.email },
+      // Use a DELETE request to your backend endpoint
+      await axios.delete(
+        `${API_URL}/api/booking/${id}?email=${user.email}`, // Pass email as query param or in headers for verification
         { 
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
@@ -343,13 +348,13 @@ export default function MyBookings() {
       );
       
       setStatusType("success");
-      setStatusMsg("Booking cancelled successfully!");
+      setStatusMsg("Booking deleted successfully!");
       await fetchBookings(); // Wait for refresh
     } catch (error) {
-      console.error("Failed to cancel booking:", error);
+      console.error("Failed to delete booking:", error);
       setStatusType("error");
       setStatusMsg(error.response?.data?.message || 
-                 "Failed to cancel booking. Please try again.");
+                 "Failed to delete booking. Please try again.");
     }
   }, [user, API_URL, fetchBookings]);
 
@@ -361,6 +366,7 @@ export default function MyBookings() {
       return;
     }
     
+    // You might still want to prevent editing of cancelled bookings if they're not deleted
     if (booking.status === 'cancelled') {
       setStatusType("error");
       setStatusMsg("Cancelled bookings cannot be edited.");
@@ -625,16 +631,12 @@ const saveEdit = useCallback(async () => {
                   Edit
                 </button>
                 <button
-                  onClick={() => handleCancel(b.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center ${
-                    b.status === 'cancelled'
-                      ? "bg-gray-300 cursor-not-allowed"
-                      : "bg-red-600 hover:bg-red-700"
-                  } transition-colors`}
-                  disabled={b.status === 'cancelled'}
+                  onClick={() => handleDeleteBooking(b.id)} // Changed to handleDeleteBooking
+                  className={`px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center bg-red-600 hover:bg-red-700 transition-colors`}
+                  // No need to disable if status is 'cancelled' if you're deleting it anyway
                 >
                   <FiX className="mr-2" />
-                  Cancel Booking
+                  Delete Booking
                 </button>
               </div>
             )}
@@ -650,7 +652,7 @@ const saveEdit = useCallback(async () => {
     slotError,
     saveEdit,
     handleEdit,
-    handleCancel,
+    handleDeleteBooking, // Changed here
     formatDate,
     formatTimeForDisplay,
     timeToMinutes,

@@ -168,28 +168,47 @@ router.get("/user-bookings", (req, res) => {
   });
 });
 
-// POST: Cancel a booking
-router.post("/cancel", async (req, res) => {
-  const { id, email } = req.body;
-  if (!id || !email) return res.status(400).json({ error: "Missing booking ID or email" });
+// DELETE: Permanently delete a booking
+router.delete("/:id", (req, res) => { // Expects ID in the URL, e.g., /api/booking/123
+  const { id } = req.params; // Get ID from URL parameters
+  const { email } = req.query; // Expect email as a query parameter for verification
 
-  const sql = `UPDATE bookings SET status = 'cancelled' WHERE id = ? AND user_email = ?`;
-  db.query(sql, [id, email], async (err) => {
-    if (err) return res.status(500).json({ error: err.message });
+  if (!id || !email) {
+    return res.status(400).json({ error: "Missing booking ID or user email for deletion" });
+  }
 
-    const bookingSql = `SELECT room, date, time, end_time FROM bookings WHERE id = ?`;
-    db.query(bookingSql, [id], async (bookingErr, bookingResults) => {
-        let bookingDetails = "";
-        if (!bookingErr && bookingResults.length > 0) {
-            const { room, date, time, end_time } = bookingResults[0];
-            bookingDetails = `<p>Details: ${room} on ${date} from ${time} to ${end_time}</p>`;
-        }
-        try {
-            await sendEmail(email, "Meeting Room Booking Cancelled", `<p>Your meeting room booking has been cancelled.</p>${bookingDetails}`);
-        } catch (mailErr) {
-            console.error("Email sending failed:", mailErr.message);
-        }
-        res.json({ message: "Booking cancelled" });
+  // First, verify that the booking belongs to the user trying to delete it
+  const verifySql = `SELECT user_email FROM bookings WHERE id = ?`;
+  db.query(verifySql, [id], (verifyErr, results) => {
+    if (verifyErr) {
+      console.error("Error verifying booking owner:", verifyErr);
+      return res.status(500).json({ error: "Database error during verification" });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Booking not found." });
+    }
+
+    if (results[0].user_email !== email) {
+      return res.status(403).json({ error: "Forbidden: You do not have permission to delete this booking." });
+    }
+
+    // If verification passes, proceed with deletion
+    const deleteSql = `DELETE FROM bookings WHERE id = ? AND user_email = ?`;
+    db.query(deleteSql, [id, email], async (deleteErr) => {
+      if (deleteErr) {
+        console.error("Error deleting booking:", deleteErr);
+        return res.status(500).json({ error: deleteErr.message });
+      }
+
+      // Optionally send a deletion confirmation email
+      try {
+        await sendEmail(email, "Meeting Room Booking Deleted", `<p>Your meeting room booking has been permanently deleted.</p>`);
+      } catch (mailErr) {
+        console.error("Email sending failed after deletion:", mailErr.message);
+      }
+
+      res.json({ message: "Booking deleted successfully!" });
     });
   });
 });

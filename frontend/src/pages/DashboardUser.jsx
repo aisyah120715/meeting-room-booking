@@ -34,6 +34,7 @@ export default function DashboardUser() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [nextMeeting, setNextMeeting] = useState(null);
+  const [upcomingBookings, setUpcomingBookings] = useState([]);
 
   const { user, logout, loadingAuth } = useAuth();
   const navigate = useNavigate();
@@ -185,26 +186,21 @@ export default function DashboardUser() {
   }, [fetchApprovedBookings]);
 
   useEffect(() => {
-    if (!loadingAuth && user && approvedBookings.length > 0) {
-      const now = new Date();
-      const userUpcomingBookings = approvedBookings
-        .filter((booking) => {
-          const bookingTimeWithSeconds = ensureSeconds(booking.time);
-          const bookingDateTime = new Date(`${booking.date}T${bookingTimeWithSeconds}`);
-          return !isNaN(bookingDateTime.getTime()) && bookingDateTime.getTime() > now.getTime();
-        })
-        .sort((a, b) => {
-          const dateA = new Date(`${a.date}T${ensureSeconds(a.time)}`);
-          const dateB = new Date(`${b.date}T${ensureSeconds(b.time)}`);
-          if (isNaN(dateA.getTime())) return 1;
-          if (isNaN(dateB.getTime())) return -1;
-          return dateA.getTime() - dateB.getTime();
-        });
-      setNextMeeting(userUpcomingBookings[0] || null);
-    } else if (!loadingAuth && !user) {
-      setNextMeeting(null);
-    }
-  }, [user, approvedBookings, loadingAuth, ensureSeconds]);
+  if (approvedBookings.length > 0) {
+    const now = new Date();
+    const upcoming = approvedBookings
+      .filter(booking => {
+        const bookingTime = new Date(`${booking.date}T${ensureSeconds(booking.time)}`);
+        return bookingTime > now;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(`${a.date}T${ensureSeconds(a.time)}`);
+        const timeB = new Date(`${b.date}T${ensureSeconds(b.time)}`);
+        return timeA - timeB;
+      });
+    setUpcomingBookings(upcoming);
+  }
+}, [approvedBookings, ensureSeconds]);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -336,71 +332,63 @@ export default function DashboardUser() {
             </Link>
           </motion.div>
 
-          {/* Your Next Meeting Card (right) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow-md p-6 border border-gray-100 md:col-span-1 lg:col-span-1" /* Adjusted col-span for flexibility */
-          >
-            <div className="flex items-center mb-4">
-              <div className="p-3 bg-indigo-100 rounded-lg mr-4 text-indigo-600">
-                <FiCalendar className="text-xl" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-800">
-                Your Next Meeting
-              </h2>
-            </div>
+          // In your DashboardUser component, update the "Your Next Meeting" card section:
+<motion.div
+  className="bg-white rounded-xl shadow-md p-6 border border-gray-100 md:col-span-1 lg:col-span-1"
+>
+  <div className="flex items-center mb-4">
+    <div className="p-3 bg-indigo-100 rounded-lg mr-4 text-indigo-600">
+      <FiCalendar className="text-xl" />
+    </div>
+    <h2 className="text-xl font-semibold text-gray-800">
+      Your Next Meeting
+    </h2>
+  </div>
 
-            {loading ? (
-              <div className="py-4 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
-                <p className="text-gray-500 mt-2">Loading next meeting...</p>
-              </div>
-            ) : error && !nextMeeting ? (
-              <div className="py-4 text-center text-red-500">
-                  <p>Error loading next meeting: {error}</p>
-              </div>
-            ) : nextMeeting ? (
-              <div>
-                <p className="text-gray-700 text-lg font-medium mb-1">
-                  {nextMeeting.room} - {formatDate(nextMeeting.date)}
-                </p>
-                <p className="text-gray-600 text-md mb-2">
-                  <FiClock className="inline-block mr-1 text-gray-500" />
-                  {formatTime(nextMeeting.time)} -{" "}
-                  {formatTime(nextMeeting.end_time)}
-                </p>
-                <p className="text-sm text-indigo-700 font-semibold">
-                  {getCountdown(nextMeeting)}
-                </p>
-                <div className="mt-4">
-                  {createGoogleCalendarLink(nextMeeting) !== "#" && (
-                    <a
-                      href={createGoogleCalendarLink(nextMeeting)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
-                      title="Add to Google Calendar"
-                    >
-                      <FiCalendar className="mr-2" /> Add to Google Calendar
-                    </a>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-gray-500 mb-4">
-                  No upcoming meetings scheduled for you.
-                </p>
-                <Link
-                  to="/calendar"
-                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                >
-                  <FiPlus className="mr-2" /> Book one now!
-                </Link>
-              </div>
-            )}
-          </motion.div>
+  {loading ? (
+    <div className="py-4 text-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+      <p className="text-gray-500 mt-2">Loading next meeting...</p>
+    </div>
+  ) : upcomingBookings.length > 0 ? (
+    upcomingBookings.slice(0, 1).map((booking) => (
+      <div key={booking.id}>
+        <p className="text-gray-700 text-lg font-medium mb-1">
+          {booking.room} - {formatDate(booking.date)}
+        </p>
+        <p className="text-gray-600 text-md mb-2">
+          <FiClock className="inline-block mr-1 text-gray-500" />
+          {formatTime(booking.time)} - {formatTime(booking.end_time)}
+        </p>
+        <p className="text-sm text-indigo-700 font-semibold">
+          {getCountdown(booking)}
+        </p>
+        <div className="mt-4">
+          <a
+            href={createGoogleCalendarLink(booking)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <FiCalendar className="mr-2" /> Add to Google Calendar
+          </a>
+        </div>
+      </div>
+    ))
+  ) : (
+    <div className="text-center py-4">
+      <p className="text-gray-500 mb-4">
+        No upcoming meetings scheduled for you.
+      </p>
+      <Link
+        to="/calendar"
+        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+      >
+        <FiPlus className="mr-2" /> Book one now!
+      </Link>
+    </div>
+  )}
+</motion.div>
         </div>
 
         {/* All Approved Bookings Section (User Specific) - Below the new grid */}
