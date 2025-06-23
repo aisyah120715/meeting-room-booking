@@ -322,24 +322,44 @@ router.get('/approved', (req, res) => {
 });
 
 
-// --- NEW ENDPOINT FOR ROOM DETAILS ---
-// This array represents your room metadata.
-// In a production app, this would typically be fetched from a 'rooms' table in your database.
-const roomData = [
-    { name: "Meeting Room A", capacity: 8, amenities: ["Projector", "Whiteboard", "Video Conferencing"] },
-    { name: "Meeting Room B", capacity: 4, amenities: ["Whiteboard"] },
-    { name: "Meeting Room C", capacity: 12, amenities: ["Projector", "Video Conferencing", "Sound System"] },
-    { name: "Meeting Room D", capacity: 6, amenities: ["Projector"] },
-    { name: "Meeting Room E", capacity: 10, amenities: ["Whiteboard", "TV Screen"] }
-];
-
+// GET: List all available rooms from database
 router.get('/rooms', (req, res) => {
-    try {
-        res.json(roomData); // Send the room details
-    } catch (error) {
-        console.error("Error fetching room details:", error);
-        res.status(500).json({ message: "Internal server error." });
+  const sql = `
+    SELECT 
+      id,
+      name,
+      capacity,
+      location,
+      description,
+      amenities,
+      is_active
+    FROM rooms
+    WHERE is_active = 1
+    ORDER BY name ASC
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error("Error fetching rooms from database:", err);
+      return res.status(500).json({ 
+        message: "Failed to fetch rooms from database",
+        error: err.message 
+      });
     }
+
+    // Format the amenities from comma-separated string to array
+    const formattedRooms = results.map(room => ({
+      id: room.id,
+      name: room.name,
+      capacity: room.capacity,
+      location: room.location,
+      description: room.description,
+      amenities: room.amenities ? room.amenities.split(',').map(a => a.trim()) : [],
+      is_active: room.is_active
+    }));
+
+    res.json(formattedRooms);
+  });
 });
 
 

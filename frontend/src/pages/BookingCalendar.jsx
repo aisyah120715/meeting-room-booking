@@ -44,33 +44,45 @@ export default function BookingCalendar() {
     "4:00pm",
   ];
 
-  // Fetch rooms from database
-  useEffect(() => {
-      const fetchRooms = async () => {
-      try {
-        setIsLoadingRooms(true);
-        const response = await axios.get(`${API_URL}/api/booking/rooms`);
-        setRooms(response.data.map(room => room.name));
-      } catch (error) {
-        console.error("Error fetching rooms:", error);
+ // Fetch rooms from database
+useEffect(() => {
+  const fetchRooms = async () => {
+    try {
+      setIsLoadingRooms(true);
+      const response = await axios.get(`${API_URL}/api/booking/rooms`);
+      
+      console.log("Rooms API response:", response.data);
+      
+      if (Array.isArray(response.data)) {
+        // Extract room names - now we know the property is definitely 'name'
+        const roomNames = response.data.map(room => room.name).filter(Boolean);
+        
+        if (roomNames.length > 0) {
+          setRooms(roomNames);
+        } else {
+          console.error("No rooms found in response:", response.data);
+          setStatus("error");
+          setConfirmationMsg("No rooms available. Please contact support.");
+        }
+      } else {
+        console.error("Unexpected rooms data format:", response.data);
         setStatus("error");
-        setConfirmationMsg("Failed to load rooms. Please try again later.");
-      } finally {
-        setIsLoadingRooms(false);
+        setConfirmationMsg("Failed to load rooms. Invalid data format.");
       }
-    };
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+      setStatus("error");
+      setConfirmationMsg(
+        error.response?.data?.message || 
+        "Failed to load rooms. Please try again later."
+      );
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  };
 
-    // Call this whenever you need to refresh rooms
-    // Example: Add a button to refresh rooms
-    <button 
-      onClick={fetchRooms}
-      className="text-sm text-green-600 hover:text-green-800"
-    >
-      Refresh Rooms
-    </button>
-
-    fetchRooms();
-  }, [API_URL]);
+  fetchRooms();
+}, [API_URL]);
 
   // Helper function to convert time (e.g., "9:00am") to minutes from midnight
   const timeToMinutes = (timeStr) => {
