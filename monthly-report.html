@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Student Monthly Attendance Report</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <style>
+    :root {
+      --primary-dark: #0a1f44;
+      --primary: #1a3a8f;
+      --primary-light: #2a56d4;
+      --secondary: #f39c12;
+      --secondary-hover: #e67e22;
+      --success: #4CAF50;
+      --warning: #FFC107;
+      --danger: #F44336;
+      --permission: #9C27B0;
+      --text-light: #f8f9fa;
+      --text-muted: #d1d7e0;
+      --white: #ffffff;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+      --border-radius: 12px;
+      --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      color: var(--text-light);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      background: rgba(10, 31, 68, 0.9);
+      color: var(--white);
+      padding: 1.25rem 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: var(--shadow);
+      z-index: 100;
+      position: sticky;
+      top: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .header-left h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      background: linear-gradient(to right, var(--white), #e0e0e0);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: 0.5px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    #headerName {
+      font-weight: 500;
+      color: var(--secondary);
+      font-size: 1rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 1.75rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--white);
+      background: var(--secondary);
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: var(--transition);
+      box-shadow: 0 4px 8px rgba(243, 156, 18, 0.2);
+      text-decoration: none;
+      gap: 0.5rem;
+    }
+
+    .btn:hover {
+      background: var(--secondary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(243, 156, 18, 0.3);
+    }
+
+    .btn-back {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 0.6rem 1.2rem;
+    }
+
+    .btn-back:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      background: rgba(10, 31, 68, 0.2);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .content-title {
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: var(--secondary);
+      text-align: center;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      animation: slideInDown 0.8s ease-out;
+    }
+
+    @keyframes slideInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .student-profile {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      animation: zoomIn 0.8s ease-out 0.2s both;
+    }
+
+    @keyframes zoomIn {
+      from {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    #studentImage {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      margin: 0 auto 1rem;
+      box-shadow: var(--shadow);
+      border: 4px solid var(--secondary);
+      transition: var(--transition);
+    }
+
+    #studentImage:hover {
+      transform: scale(1.05);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    #studentName {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-light);
+      margin-bottom: 0.5rem;
+    }
+
+    #studentId {
+      font-size: 1rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.3rem 1rem;
+      border-radius: 20px;
+      display: inline-block;
+    }
+
+    .report-wrapper {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 2rem;
+      align-items: stretch;
+      max-width: 1200px;
+      margin: 0 auto;
+      animation: slideInUp 0.8s ease-out 0.4s both;
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(40px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chart-box, .stats-box {
+      background: rgba(26, 58, 143, 0.25);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      width: 100%;
+      max-width: 500px;
+      min-height: 420px;
+      box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition);
+    }
+
+    .chart-box:hover, .stats-box:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .chart-box {
+      justify-content: center;
+      align-items: center;
+    }
+
+    .chart-title {
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--secondary);
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .chart-box canvas {
+      max-width: 100%;
+      max-height: 300px;
+      margin: 0 auto;
+    }
+
+    .stats-box {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.2rem;
+    }
+
+    .stat {
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      text-align: center;
+      font-weight: 600;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s;
+    }
+
+    .stat:hover::before {
+      left: 100%;
+    }
+
+    .stat:hover {
+      transform: translateY(-5px) scale(1.02);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .stat-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      opacity: 0.8;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      margin-bottom: 0.25rem;
+      font-weight: 700;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      opacity: 0.9;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .on-time { 
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(76, 175, 80, 0.1)); 
+      border: 1px solid var(--success); 
+      color: var(--success); 
+    }
+    .late { 
+      background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 193, 7, 0.1)); 
+      border: 1px solid var(--warning); 
+      color: var(--warning); 
+    }
+    .absent { 
+      background: linear-gradient(135deg, rgba(244, 67, 54, 0.2), rgba(244, 67, 54, 0.1)); 
+      border: 1px solid var(--danger); 
+      color: var(--danger); 
+    }
+    .permission { 
+      background: linear-gradient(135deg, rgba(156, 39, 176, 0.2), rgba(156, 39, 176, 0.1)); 
+      border: 1px solid var(--permission); 
+      color: var(--permission); 
+    }
+    .total { 
+      background: linear-gradient(135deg, rgba(108, 117, 125, 0.2), rgba(108, 117, 125, 0.1)); 
+      border: 1px solid #6c757d; 
+      color: var(--text-light); 
+    }
+
+    .summary-section {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, rgba(243, 156, 18, 0.15), rgba(243, 156, 18, 0.05));
+      border: 2px solid rgba(243, 156, 18, 0.3);
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .summary-section::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(243, 156, 18, 0.1) 0%, transparent 70%);
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 0.5; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .percentage {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--secondary);
+      margin-bottom: 0.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .warning {
+      color: var(--danger);
+      font-weight: 600;
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      position: relative;
+      z-index: 1;
+      animation: blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .warning i {
+      font-size: 1.2rem;
+      animation: shake 0.5s ease-in-out infinite;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-2px); }
+      75% { transform: translateX(2px); }
+    }
+
+    .breadcrumb {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.75rem 1.5rem;
+      border-radius: 25px;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .breadcrumb a {
+      color: var(--secondary);
+      text-decoration: none;
+      transition: var(--transition);
+    }
+
+    .breadcrumb a:hover {
+      color: var(--secondary-hover);
+    }
+
+    @media (max-width: 992px) {
+      .report-wrapper {
+        gap: 1.5rem;
+      }
+      .chart-box, .stats-box {
+        max-width: 100%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: 1.5rem;
+      }
+      .content-title {
+        font-size: 1.5rem;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .stats-box {
+        grid-template-columns: 1fr 1fr;
+      }
+      .header-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+      }
+      .header-left h1 {
+        font-size: 1.3rem;
+      }
+    }
+
+    @media (max-width: 576px) {
+      header {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .header-left {
+        width: 100%;
+        justify-content: space-between;
+        flex-direction: row;
+        align-items: center;
+      }
+      .header-right {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .content-title {
+        font-size: 1.3rem;
+      }
+      .stats-box {
+        grid-template-columns: 1fr;
+      }
+      #studentImage {
+        width: 120px;
+        height: 120px;
+      }
+      #studentName {
+        font-size: 1.2rem;
+      }
+      .chart-box, .stats-box {
+        padding: 1.5rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <button class="btn btn-back" id="backBtn">
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+        <h1>Smart Attendance System</h1>
+      </div>
+      <div class="header-right">
+        <span id="headerName">Lecturer</span>
+        <button class="btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+      </div>
+    </header>
+    
+    <section class="main-content">
+      <div class="breadcrumb">
+        <i class="fas fa-home"></i> Dashboard > <a href="javascript:history.back()">Class Management</a> > Student Report
+      </div>
+      
+      <h2 class="content-title">
+        <i class="fas fa-user-graduate"></i> 
+        STUDENT MONTHLY ATTENDANCE REPORT
+      </h2>
+      
+      <div class="student-profile">
+        <img id="studentImage" src="images/default-avatar.png" alt="Student Profile" />
+        <div id="studentName">Loading...</div>
+        <div id="studentId"></div>
+      </div>
+
+      <div class="report-wrapper">
+        <div class="chart-box">
+          <div class="chart-title">
+            <i class="fas fa-chart-pie"></i>
+            Attendance Overview
+          </div>
+          <canvas id="attendanceChart" width="400" height="400"></canvas>
+        </div>
+        
+        <div class="stats-box">
+          <div class="stat on-time">
+            <i class="fas fa-check-circle stat-icon"></i>
+            <span class="stat-value" id="onTime">--</span>
+            <span class="stat-label">On Time</span>
+          </div>
+          
+          <div class="stat late">
+            <i class="fas fa-clock stat-icon"></i>
+            <span class="stat-value" id="late">--</span>
+            <span class="stat-label">Late</span>
+          </div>
+          
+          <div class="stat permission">
+            <i class="fas fa-file-alt stat-icon"></i>
+            <span class="stat-value" id="permission">--</span>
+            <span class="stat-label">Permission</span>
+          </div>
+          
+          <div class="stat absent">
+            <i class="fas fa-times-circle stat-icon"></i>
+            <span class="stat-value" id="absent">--</span>
+            <span class="stat-label">Absent</span>
+          </div>
+          
+          <div class="stat total">
+            <i class="fas fa-calendar-alt stat-icon"></i>
+            <span class="stat-value" id="total">--</span>
+            <span class="stat-label">Total Days</span>
+          </div>
+          
+          <div class="summary-section">
+            <div class="percentage" id="percentage">Attendance: --%</div>
+            <div class="warning" id="warningBox" style="display:none;">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>Low Attendance Warning!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+  import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+  import { getStorage, ref as storageRef, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDufExYjU8Y2a1FEWwtbX6tNuL3tO8Mo2s",
+    authDomain: "login-form-9b836.firebaseapp.com",
+    databaseURL: "https://login-form-9b836-default-rtdb.firebaseio.com",
+    projectId: "login-form-9b836",
+    storageBucket: "login-form-9b836.appspot.com",
+    messagingSenderId: "878421828817",
+    appId: "1:878421828817:web:5941ad4c1605e9fc1551f0"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
+  const storage = getStorage(app, 'gs://login-form-9b836.firebasestorage.app');
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const studentId = urlParams.get('studentId');
+  const fullClassPath = urlParams.get('classId');
+  const [classId, , classKey] = fullClassPath.split('/');
+
+  // Set header name
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      const username = localStorage.getItem("username");
+      const lecturerName = localStorage.getItem("lecturerName");
+      document.getElementById("headerName").textContent = lecturerName || username || 'Lecturer';
+    }
+  });
+
+  // Back button functionality
+  document.getElementById('backBtn').addEventListener('click', () => {
+    // Try to go back to the previous page, or redirect to dashboard
+    if (document.referrer && document.referrer !== window.location.href) {
+      window.history.back();
+    } else {
+      // Fallback to dashboard or class management page
+      window.location.href = 'dashboard.html';
+    }
+  });
+
+  async function loadStudentReport() {
+    try {
+      const attendanceRef = ref(db, `attendance/${classId}/class/${classKey}/${studentId}`);
+      const snapshot = await get(attendanceRef);
+
+      if (!snapshot.exists()) {
+        document.getElementById("studentName").textContent = "Student data not found";
+        Swal.fire({
+          title: 'No Data Found',
+          text: 'No attendance data found for this student.',
+          icon: 'warning',
+          background: 'rgba(10, 31, 68, 0.9)',
+          color: '#f8f9fa'
+        });
+        return;
+      }
+
+      const data = snapshot.val();
+      const keys = Object.keys(data).filter(k => data[k].name && data[k].status);
+      const studentName = keys.length > 0 ? data[keys[0]].name : "Unknown";
+
+      let onTime = 0, late = 0, permission = 0, absent = 0;
+      keys.forEach(key => {
+        const status = data[key].status;
+        if (status === "On Time") onTime++;
+        else if (status === "Late") late++;
+        else if (status === "Absent with Permission") permission++;
+        else if (status === "Absent") absent++;
+      });
+
+      const total = onTime + late + permission + absent;
+      const percent = total ? (((onTime + late + permission) / total) * 100).toFixed(1) : "0";
+
+      // Animate the numbers
+      animateValue("onTime", 0, onTime, 1000);
+      animateValue("late", 0, late, 1200);
+      animateValue("permission", 0, permission, 1400);
+      animateValue("absent", 0, absent, 1600);
+      animateValue("total", 0, total, 1800);
+
+      document.getElementById("studentName").textContent = studentName;
+      document.getElementById("studentId").textContent = `ID: ${studentId}`;
+      
+      setTimeout(() => {
+        document.getElementById("percentage").textContent = `Attendance: ${percent}%`;
+        
+        if (parseFloat(percent) < 75) {
+          document.getElementById("warningBox").style.display = "flex";
+        }
+      }, 2000);
+
+      // Load profile picture from Firebase Storage
+      try {
+        const imgRef = storageRef(storage, `profile_pics/${studentId}.jpg`);
+        const imageUrl = await getDownloadURL(imgRef);
+        document.getElementById("studentImage").src = imageUrl;
+      } catch (error) {
+        console.log("Using default profile picture:", error.message);
+        document.getElementById("studentImage").src = "images/default-avatar.png";
+      }
+
+      setTimeout(() => drawChart(onTime, late, permission, absent), 500);
+      
+    } catch (error) {
+      console.error("Error loading student report:", error);
+      Swal.fire({
+        title: 'Error',
+        text: 'Failed to load student report. Please try again.',
+        icon: 'error',
+        background: 'rgba(10, 31, 68, 0.9)',
+        color: '#f8f9fa'
+      });
+    }
+  }
+
+  function animateValue(id, start, end, duration) {
+    const element = document.getElementById(id);
+    const range = end - start;
+    const increment = range / (duration / 16);
+    let current = start;
+    
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= end) {
+        current = end;
+        clearInterval(timer);
+      }
+      element.textContent = Math.floor(current);
+    }, 16);
+  }
+
+  function drawChart(onTime, late, permission, absent) {
+    const ctx = document.getElementById("attendanceChart").getContext("2d");
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-light');
+
+    if (window.attendanceChart instanceof Chart) {
+      window.attendanceChart.destroy();
+    }
+
+    window.attendanceChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["On Time", "Late", "Permission", "Absent"],
+        datasets: [{
+          data: [onTime, late, permission, absent],
+          backgroundColor: ["#4caf50", "#ff9800", "#9c27b0", "#f44336"],
+          borderWidth: 3,
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          hoverBorderWidth: 4,
+          hoverBorderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: {
+            position: "bottom",
+            labels: {
+              color: textColor,
+              padding: 20,
+              usePointStyle: true,
+              font: {
+                size: 12,
+                family: 'Poppins'
+              }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(10, 31, 68, 0.9)',
+            titleColor: '#f8f9fa',
+            bodyColor: '#f8f9fa',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1
+          }
+        },
+        animation: {
+          animateRotate: true,
+          duration: 2000
+        }
+      }
+    });
+  }
+
+  function logout() {
+    Swal.fire({
+      title: 'Logout Confirmation',
+      text: 'Are you sure you want to logout?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#f39c12',
+      cancelButtonColor: '#d1d7e0',
+      confirmButtonText: 'Yes, logout',
+      cancelButtonText: 'Cancel',
+      background: 'rgba(10, 31, 68, 0.9)',
+      color: '#f8f9fa'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        signOut(auth)
+          .then(() => {
+            localStorage.clear();
+            window.location.href = "login.html";
+          })
+          .catch((error) => {
+            console.error("Logout error:", error);
+            Swal.fire('Error', 'Logout failed. Please try again.', 'error');
+          });
+      }
+    });
+  }
+
+  // Initialize the page
+  loadStudentReport();
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+</script>
+
+</body>
+</html>
