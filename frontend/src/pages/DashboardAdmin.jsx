@@ -127,6 +127,14 @@ export default function DashboardAdmin() {
             <span>Dashboard</span>
             <FiChevronRight className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
           </Link>
+          <Link 
+            to="/stock-movement" 
+            className="flex items-center p-3 text-indigo-200 hover:bg-indigo-700 rounded-lg transition-all group"
+          >
+            <span className="mr-3 text-lg group-hover:scale-110 transition-transform">📦</span>
+            <span>Stock Movement</span>
+            <FiChevronRight className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+          </Link>
         </nav>
         
         <div className="mt-auto pt-4 border-t border-indigo-700">

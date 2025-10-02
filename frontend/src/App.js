@@ -8,6 +8,7 @@ import Signup from "./pages/Signup";
 import DashboardUser from "./pages/DashboardUser";
 import DashboardAdmin from "./pages/DashboardAdmin";
 import WelcomePage from "./pages/WelcomePage";
+import StockMovement from "./pages/StockMovement";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/my-bookings" element={<MyBookings />} />
         <Route path="/dashboard-user" element={<DashboardUser />} />
         <Route path="/dashboard-admin" element={<DashboardAdmin />} />
+        <Route path="/stock-movement" element={<StockMovement />} />
       </Routes>
     </AuthProvider>
   );
